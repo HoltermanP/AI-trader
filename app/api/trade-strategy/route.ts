@@ -5,7 +5,7 @@ import { buildSinglePairMarketSnapshot } from '@/lib/market-snapshot';
 import { buildNewsDigest } from '@/lib/news/headlines';
 
 const SYSTEM_PROMPT =
-  'You are an expert crypto trading analyst. The user message may include real-time Binance OHLCV-derived data (price, RSI, MACD-style trend) for the selected pair and timeframe, plus optional news headlines. Ground support/resistance and indicator commentary in that data when it is present; if data is missing, say so briefly. Provide detailed, specific, and actionable trading strategies with concrete price levels, percentages, and risk parameters.';
+  'Je bent een ervaren crypto-handelsanalist. Het gebruikersbericht kan real-time Binance OHLCV-data bevatten (prijs, RSI, MACD-achtige trend) voor het gekozen paar en timeframe, plus optionele nieuws-headlines. Baseer support/resistance en indicatorcommentaar op die data wanneer die er is; als data ontbreekt, zeg dat kort. Geef gedetailleerde, concrete en uitvoerbare handelsstrategieën met prijsniveaus, percentages en risicoparameters. Schrijf je volledige antwoord in het Nederlands.';
 
 export async function POST(req: NextRequest) {
   try {

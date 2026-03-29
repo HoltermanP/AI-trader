@@ -19,49 +19,49 @@ export type TradingAnalysisParams = {
 export function buildTradingPrompt(params: TradingAnalysisParams): string {
   const marketSection =
     params.marketDataBlock?.trim() ?
-      `\n## Live market data (Binance, indicators on selected timeframe)\n${params.marketDataBlock.trim()}\n`
+      `\n## Live marktdata (Binance, indicatoren op gekozen timeframe)\n${params.marketDataBlock.trim()}\n`
       : '';
   const newsSection =
     params.newsDigestBlock?.trim() ?
-      `\n## Recent news & macro headlines\n${params.newsDigestBlock.trim()}\n`
+      `\n## Recente nieuws- & macro-headlines\n${params.newsDigestBlock.trim()}\n`
       : '';
 
-  return `Analyze the following crypto trading scenario and provide a comprehensive, actionable strategy. Base your technical read primarily on the live market data below when present; incorporate headlines only where they add relevant context.
+  return `Analyseer het volgende crypto-handelsscenario en geef een volledige, uitvoerbare strategie. Baseer je technische inschatting primair op de live marktdata hieronder wanneer die aanwezig is; gebruik headlines alleen waar ze relevante context toevoegen. Schrijf de volledige analyse in het Nederlands.
 
-**Trading Pair:** ${params.pair}
+**Handelspaar:** ${params.pair}
 **Timeframe:** ${params.timeframe}
-**Risk Level:** ${params.riskLevel}
-${params.additionalContext ? `**Additional Context:** ${params.additionalContext}` : ''}
+**Risiconiveau:** ${params.riskLevel}
+${params.additionalContext ? `**Extra context:** ${params.additionalContext}` : ''}
 ${marketSection}${newsSection}
-Structure your analysis with the following sections:
+Structureer je analyse met de volgende secties (koppen exact zo gebruiken):
 
-## 1. Market Analysis
-Describe current market conditions, trend direction, momentum, and key support/resistance levels for ${params.pair} on the ${params.timeframe} timeframe. Identify whether the market is trending, ranging, or at a potential reversal point.
+## 1. Marktanalyse
+Beschrijf de huidige marktomstandigheden, trendrichting, momentum en belangrijke support/resistance voor ${params.pair} op het ${params.timeframe}-timeframe. Geef aan of de markt trendend, rangebound is of bij een mogelijk keerpunt.
 
-## 2. Entry Strategy
-- Primary entry point and trigger conditions
-- Confirmation signals to wait for before entering
-- Recommended order type (market, limit, stop-limit)
+## 2. Instapstrategie
+- Primair instappunt en voorwaarden om te triggeren
+- Bevestigingssignalen om op te wachten vóór instap
+- Aanbevolen ordertype (market, limit, stop-limit)
 
-## 3. Exit Strategy
-- **Take Profit:** Specific target level(s) with rationale
-- **Stop Loss:** Placement with reasoning
-- **Risk/Reward Ratio:** Calculated R:R for this setup
+## 3. Exitstrategie
+- **Take profit:** concrete doelniveau(s) met onderbouwing
+- **Stop loss:** plaatsing met reden
+- **Risk/reward:** berekende R:R voor deze setup
 
-## 4. Risk Management
-- Suggested position size as % of portfolio given ${params.riskLevel} risk
-- Maximum acceptable loss scenario
-- Conditions that would invalidate this setup
+## 4. Risicobeheer
+- Voorgestelde positiegrootte als % van portfolio gegeven ${params.riskLevel} risico
+- Maximaal acceptabel verliesscenario
+- Voorwaarden die deze setup ongeldig maken
 
-## 5. Key Technical Indicators
-List 3–5 most relevant indicators to monitor and what signal each should show for trade confirmation.
+## 5. Belangrijke technische indicatoren
+Noem 3–5 meest relevante indicatoren om te volgen en welk signaal elk moet geven voor tradebevestiging.
 
-## 6. Confidence Assessment
-**Confidence Level: Low / Medium / High**
+## 6. Vertrouwensbeoordeling
+**Vertrouwensniveau: Laag / Gemiddeld / Hoog**
 
-Brief reasoning for your confidence, noting any significant risks or market conditions that could affect this strategy.
+Korte onderbouwing van je vertrouwen, inclusief belangrijke risico’s of marktomstandigheden die deze strategie kunnen beïnvloeden.
 
-Be specific and practical. Use concrete numbers where possible.`;
+Wees concreet en praktisch. Gebruik waar mogelijk harde cijfers.`;
 }
 
 export type MultiPairSignalsParams = {
@@ -108,7 +108,7 @@ Antwoord uitsluitend met geldige JSON (geen markdown, geen tekst eromheen) in di
 Regels:
 - "signal" is altijd één van: BUY, SELL, HOLD.
 - "confidence" is één van: Low, Medium, High.
-- "rationale": maximaal 1–2 zinnen, Nederlands of Engels is toegestaan.
+- "rationale": maximaal 1–2 zinnen, altijd in het Nederlands.
 - Het array "signals" moet precies ${TRADE_PAIRS.length} objecten bevatten, één per paar, met "pair" exact zoals in de lijst hierboven.
 
 Disclaimer: dit is geen financieel advies; signalen zijn educatief.`;

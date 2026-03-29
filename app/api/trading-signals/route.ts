@@ -12,7 +12,7 @@ import {
 } from '@/lib/trading-signals';
 
 const SYSTEM_SIGNALS =
-  'You are a disciplined crypto market analyst. You receive real Binance OHLCV-derived indicators and recent news headlines in the user message — weigh technicals, 24h price action, and macro/news when forming each signal. Output only valid JSON when asked. Signals are educational opinions, not financial advice.';
+  'Je bent een gedisciplineerde crypto-marktanalist. Je krijgt echte Binance OHLCV-indicatoren en recente nieuws-headlines in het gebruikersbericht — weeg techniek, 24u-koers en macro/nieuws mee bij elk signaal. Geef alleen geldige JSON wanneer daarom wordt gevraagd. Signalen zijn educatieve meningen, geen financieel advies. Veld "rationale" altijd in het Nederlands.';
 
 export async function POST(req: NextRequest) {
   try {
