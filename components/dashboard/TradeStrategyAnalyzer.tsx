@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import TradeResult from './TradeResult';
+import { TRADE_PAIRS } from '@/lib/crypto-pairs';
 
 type FormState = {
   pair: string;
@@ -20,7 +21,6 @@ type ModelState = {
   error?: string;
 };
 
-const PAIRS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'AVAX/USDT', 'MATIC/USDT', 'LINK/USDT'];
 const TIMEFRAMES = ['15m', '1h', '4h', '1d', '1w'];
 const RISK_LEVELS = ['Conservative', 'Moderate', 'Aggressive'];
 
@@ -153,7 +153,7 @@ export default function TradeStrategyAnalyzer() {
               disabled={isAnalyzing}
               aria-label="Trading pair"
             >
-              {PAIRS.map((p) => (
+              {TRADE_PAIRS.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import KPIGrid from '@/components/dashboard/KPIGrid';
+import LivePriceChart from '@/components/dashboard/LivePriceChart';
 import TradeStrategyAnalyzer from '@/components/dashboard/TradeStrategyAnalyzer';
+import TradingSignalsPanel from '@/components/dashboard/TradingSignalsPanel';
 
 export const metadata: Metadata = {
   title: 'Dashboard | AI-Trader',
@@ -19,6 +21,10 @@ export default function DashboardPage() {
       </div>
 
       <KPIGrid />
+
+      <TradingSignalsPanel />
+
+      <LivePriceChart />
 
       <TradeStrategyAnalyzer />
     </div>

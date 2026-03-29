@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { TRADE_PAIRS } from '@/lib/crypto-pairs';
 
 export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -53,4 +54,54 @@ List 3–5 most relevant indicators to monitor and what signal each should show 
 Brief reasoning for your confidence, noting any significant risks or market conditions that could affect this strategy.
 
 Be specific and practical. Use concrete numbers where possible.`;
+}
+
+export type MultiPairSignalsParams = {
+  timeframe: string;
+  riskLevel: string;
+  additionalContext?: string;
+  /** Binance-koersen + RSI + MACD-stijl trend */
+  marketDataBlock?: string;
+  /** Geaggregeerde headlines (macro, crypto, etc.) */
+  newsDigestBlock?: string;
+};
+
+export function buildMultiPairSignalsPrompt(params: MultiPairSignalsParams): string {
+  const pairsList = TRADE_PAIRS.join(', ');
+  const marketSection =
+    params.marketDataBlock?.trim() ?
+      `\n## Actuele marktdata (Binance, technische indicatoren)\n${params.marketDataBlock.trim()}\n`
+      : '';
+  const newsSection =
+    params.newsDigestBlock?.trim() ?
+      `\n## Recente nieuws- & macro-headlines\n${params.newsDigestBlock.trim()}\n`
+      : '';
+
+  return `Je bent een crypto-analist. Gebruik de onderstaande marktdata en headlines waar relevant — geef voor ELK van de volgende paren precies één handelsignaal. Leg in de rationale kort uit of je vooral op techniek (RSI, trend), koersbeweging 24u, of nieuws/macro leunt.
+
+**Timeframe analyse:** ${params.timeframe}
+**Risiconiveau:** ${params.riskLevel}
+${params.additionalContext ? `**Extra context van gebruiker:** ${params.additionalContext}` : ''}
+${marketSection}${newsSection}
+**Paren (exact deze labels gebruiken):** ${pairsList}
+
+Antwoord uitsluitend met geldige JSON (geen markdown, geen tekst eromheen) in dit formaat:
+{
+  "signals": [
+    {
+      "pair": "BTC/USDT",
+      "signal": "BUY",
+      "confidence": "Medium",
+      "rationale": "Korte zin met reden."
+    }
+  ]
+}
+
+Regels:
+- "signal" is altijd één van: BUY, SELL, HOLD.
+- "confidence" is één van: Low, Medium, High.
+- "rationale": maximaal 1–2 zinnen, Nederlands of Engels is toegestaan.
+- Het array "signals" moet precies ${TRADE_PAIRS.length} objecten bevatten, één per paar, met "pair" exact zoals in de lijst hierboven.
+
+Disclaimer: dit is geen financieel advies; signalen zijn educatief.`;
 }
