@@ -16,7 +16,7 @@ export default function DashboardPage() {
           Trading Dashboard
         </h1>
         <p className="text-xs font-mono text-slate-custom tracking-[0.15em]">
-          <span className="text-blue-light">AI</span>-FIRST CRYPTO ANALYSIS &middot; POWERED BY GPT-4o &amp; CLAUDE SONNET
+          <span className="text-blue-light">AI</span>-FIRST CRYPTO ANALYSIS &middot; CLAUDE (ANTHROPIC)
         </p>
       </div>
 

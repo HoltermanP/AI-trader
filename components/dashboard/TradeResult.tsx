@@ -7,7 +7,6 @@ import Card from '@/components/ui/Card';
 type ModelStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
 interface TradeResultProps {
-  model: string;
   modelLabel: string;
   modelProvider: string;
   state: {
@@ -45,9 +44,8 @@ const statusConfig: Record<ModelStatus, { color: string; badge: string; badgeCla
   },
 };
 
-export default function TradeResult({ model, modelLabel, modelProvider, state }: TradeResultProps) {
+export default function TradeResult({ modelLabel, modelProvider, state }: TradeResultProps) {
   const cfg = statusConfig[state.status];
-  const isOpenAI = model === 'openai';
 
   return (
     <Card>
@@ -55,9 +53,7 @@ export default function TradeResult({ model, modelLabel, modelProvider, state }:
         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.color}`} />
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-off-white leading-tight">{modelLabel}</h3>
-          <p className="text-[11px] font-mono text-slate-custom">
-            {isOpenAI ? 'OpenAI · GPT-4o' : 'Anthropic · Claude Sonnet'}
-          </p>
+          <p className="text-[11px] font-mono text-slate-custom">Anthropic · Claude Sonnet</p>
         </div>
         <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full border flex-shrink-0 ${cfg.badgeClass}`}>
           {cfg.badge}

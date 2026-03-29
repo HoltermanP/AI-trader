@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import { isLlmCallsEnabledClient } from '@/lib/settings-storage';
 import TradeResult from './TradeResult';
 import { TRADE_PAIRS } from '@/lib/crypto-pairs';
 
@@ -25,7 +26,6 @@ const TIMEFRAMES = ['15m', '1h', '4h', '1d', '1w'];
 const RISK_LEVELS = ['Conservative', 'Moderate', 'Aggressive'];
 
 async function streamAnalysis(
-  model: string,
   formState: FormState,
   onChunk: (text: string) => void,
   onError: (error: string) => void,
@@ -36,7 +36,6 @@ async function streamAnalysis(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model,
         pair: formState.pair,
         timeframe: formState.timeframe,
         riskLevel: formState.riskLevel,
@@ -84,43 +83,43 @@ export default function TradeStrategyAnalyzer() {
     additionalContext: '',
   });
 
-  const [openaiState, setOpenaiState] = useState<ModelState>({ status: 'idle', content: '' });
-  const [anthropicState, setAnthropicState] = useState<ModelState>({ status: 'idle', content: '' });
+  const [analysisState, setAnalysisState] = useState<ModelState>({ status: 'idle', content: '' });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [llmCallsEnabled, setLlmCallsEnabled] = useState(true);
+
+  useEffect(() => {
+    const sync = () => setLlmCallsEnabled(isLlmCallsEnabledClient());
+    sync();
+    window.addEventListener('storage', sync);
+    window.addEventListener('ai-trader-settings-updated', sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener('ai-trader-settings-updated', sync);
+    };
+  }, []);
 
   const handleAnalyze = async () => {
+    if (!isLlmCallsEnabledClient()) return;
     if (isAnalyzing) return;
 
     setIsAnalyzing(true);
-    setOpenaiState({ status: 'loading', content: '' });
-    setAnthropicState({ status: 'loading', content: '' });
+    setAnalysisState({ status: 'loading', content: '' });
 
-    const openaiPromise = streamAnalysis(
-      'openai',
+    await streamAnalysis(
       form,
-      (text) => setOpenaiState((prev) => ({ ...prev, status: 'streaming', content: prev.content + text })),
-      (error) => setOpenaiState({ status: 'error', content: '', error }),
-      () => setOpenaiState((prev) => ({ ...prev, status: 'done' })),
+      (text) => setAnalysisState((prev) => ({ ...prev, status: 'streaming', content: prev.content + text })),
+      (error) => setAnalysisState({ status: 'error', content: '', error }),
+      () => setAnalysisState((prev) => ({ ...prev, status: 'done' })),
     );
 
-    const anthropicPromise = streamAnalysis(
-      'anthropic',
-      form,
-      (text) => setAnthropicState((prev) => ({ ...prev, status: 'streaming', content: prev.content + text })),
-      (error) => setAnthropicState({ status: 'error', content: '', error }),
-      () => setAnthropicState((prev) => ({ ...prev, status: 'done' })),
-    );
-
-    await Promise.all([openaiPromise, anthropicPromise]);
     setIsAnalyzing(false);
   };
 
   const handleReset = () => {
-    setOpenaiState({ status: 'idle', content: '' });
-    setAnthropicState({ status: 'idle', content: '' });
+    setAnalysisState({ status: 'idle', content: '' });
   };
 
-  const showResults = openaiState.status !== 'idle' || anthropicState.status !== 'idle';
+  const showResults = analysisState.status !== 'idle';
   const selectClass =
     'w-full bg-[#0A0A0B] border border-[#1E1E28] rounded-lg px-3 py-2.5 text-off-white text-sm focus:outline-none focus:border-ai-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -131,8 +130,16 @@ export default function TradeStrategyAnalyzer() {
           <div>
             <h2 className="text-xl font-semibold text-off-white">Trade Strategy Analyzer</h2>
             <p className="text-xs font-mono text-slate-custom mt-1">
-              DUAL-AI ANALYSIS &middot; GPT-4o + CLAUDE SONNET
+              CLAUDE SONNET (ANTHROPIC)
             </p>
+            <p className="text-xs text-slate-custom mt-2 max-w-2xl">
+              Live Binance-koersen, RSI en MACD-stijl trend op jouw timeframe; optioneel recente headlines (zelfde aanpak als Trading Signals).
+            </p>
+            {!llmCallsEnabled && (
+              <p className="text-sm text-amber-400/95 mt-2 max-w-2xl">
+                LLM-aanroepen staan uit in Instellingen. Zet &quot;LLM-aanroepen toestaan&quot; aan om analyses te draaien.
+              </p>
+            )}
           </div>
           {showResults && !isAnalyzing && (
             <Button variant="outline" onClick={handleReset} className="text-xs px-3 py-1.5">
@@ -196,7 +203,7 @@ export default function TradeStrategyAnalyzer() {
           <div className="flex flex-col justify-end">
             <Button
               onClick={handleAnalyze}
-              disabled={isAnalyzing}
+              disabled={isAnalyzing || !llmCallsEnabled}
               variant="primary"
               className="w-full"
               aria-label="Run trade strategy analysis"
@@ -238,20 +245,11 @@ export default function TradeStrategyAnalyzer() {
       </Card>
 
       {showResults && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TradeResult
-            model="openai"
-            modelLabel="GPT-4o Analysis"
-            modelProvider="OpenAI"
-            state={openaiState}
-          />
-          <TradeResult
-            model="anthropic"
-            modelLabel="Claude Analysis"
-            modelProvider="Anthropic"
-            state={anthropicState}
-          />
-        </div>
+        <TradeResult
+          modelLabel="Claude-analyse"
+          modelProvider="Anthropic"
+          state={analysisState}
+        />
       )}
     </div>
   );

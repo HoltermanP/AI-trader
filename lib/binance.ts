@@ -11,9 +11,87 @@ export type KlineInterval =
   | '1d'
   | '1w';
 
+/** Intervals voor live grafiek (Binance spot klines). */
+export type ChartKlineInterval =
+  | '1m'
+  | '5m'
+  | '15m'
+  | '30m'
+  | '1h'
+  | '4h'
+  | '1d'
+  | '1w';
+
+export const CHART_KLINE_INTERVALS: ChartKlineInterval[] = [
+  '1m',
+  '5m',
+  '15m',
+  '30m',
+  '1h',
+  '4h',
+  '1d',
+  '1w',
+];
+
+export function isChartKlineInterval(s: string): s is ChartKlineInterval {
+  return (CHART_KLINE_INTERVALS as readonly string[]).includes(s);
+}
+
 export function timeframeToBinanceInterval(tf: string): KlineInterval {
   if (tf === '15m' || tf === '1h' || tf === '4h' || tf === '1d' || tf === '1w') return tf;
   return '4h';
+}
+
+export type KlineCandle = {
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  closeTime: number;
+};
+
+/** OHLCV-candles, oud → nieuw. Max 1000 per Binance. */
+export async function fetchKlines(
+  symbol: string,
+  interval: ChartKlineInterval,
+  limit: number,
+): Promise<KlineCandle[] | null> {
+  try {
+    const lim = Math.min(1000, Math.max(1, Math.floor(limit)));
+    const res = await fetch(
+      `${BINANCE_API}/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${lim}`,
+      { cache: 'no-store', headers: { Accept: 'application/json' } },
+    );
+    if (!res.ok) return null;
+    const raw = (await res.json()) as unknown;
+    if (!Array.isArray(raw)) return null;
+    const out: KlineCandle[] = [];
+    for (const row of raw) {
+      if (!Array.isArray(row) || row.length < 7) continue;
+      const openTime = Number(row[0]);
+      const open = parseFloat(String(row[1]));
+      const high = parseFloat(String(row[2]));
+      const low = parseFloat(String(row[3]));
+      const close = parseFloat(String(row[4]));
+      const volume = parseFloat(String(row[5]));
+      const closeTime = Number(row[6]);
+      if (!Number.isFinite(openTime) || !Number.isFinite(close)) continue;
+      out.push({
+        openTime,
+        open,
+        high,
+        low,
+        close,
+        volume: Number.isFinite(volume) ? volume : 0,
+        closeTime: Number.isFinite(closeTime) ? closeTime : openTime,
+      });
+    }
+    return out;
+  } catch {
+    return null;
+  }
 }
 
 export type Ticker24h = {

@@ -1,16 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-
-type PreferredModel = 'openai' | 'anthropic';
+import { notifyTraderSettingsUpdated, TRADER_SETTINGS_KEY } from '@/lib/settings-storage';
 
 type Settings = {
   defaultPair: string;
   defaultTimeframe: string;
   defaultRiskLevel: string;
-  preferredModels: PreferredModel[];
+  llmCallsEnabled: boolean;
 };
 
 const PAIRS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'ADA/USDT', 'AVAX/USDT', 'LINK/USDT'];
@@ -20,81 +19,77 @@ const RISK_LEVELS = ['Conservative', 'Moderate', 'Aggressive'];
 const selectClass =
   'w-full bg-[#0A0A0B] border border-[#1E1E28] rounded-lg px-3 py-2.5 text-off-white text-sm focus:outline-none focus:border-ai-blue transition-colors';
 
+const defaultSettings: Settings = {
+  defaultPair: 'BTC/USDT',
+  defaultTimeframe: '4h',
+  defaultRiskLevel: 'Moderate',
+  llmCallsEnabled: true,
+};
+
+function loadSettingsFromStorage(): Settings {
+  if (typeof window === 'undefined') return defaultSettings;
+  try {
+    const raw = localStorage.getItem(TRADER_SETTINGS_KEY);
+    if (!raw) return defaultSettings;
+    const parsed = JSON.parse(raw) as Partial<Settings>;
+    return {
+      ...defaultSettings,
+      ...parsed,
+      llmCallsEnabled: parsed.llmCallsEnabled !== false,
+    };
+  } catch {
+    return defaultSettings;
+  }
+}
+
 export default function SettingsForm() {
-  const [settings, setSettings] = useState<Settings>({
-    defaultPair: 'BTC/USDT',
-    defaultTimeframe: '4h',
-    defaultRiskLevel: 'Moderate',
-    preferredModels: ['openai', 'anthropic'],
-  });
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setSettings(loadSettingsFromStorage());
+  }, []);
 
   const handleSave = () => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('ai-trader-settings', JSON.stringify(settings));
+      localStorage.setItem(TRADER_SETTINGS_KEY, JSON.stringify(settings));
+      notifyTraderSettingsUpdated();
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
 
-  const toggleModel = (model: PreferredModel) => {
-    setSettings((prev) => ({
-      ...prev,
-      preferredModels: prev.preferredModels.includes(model)
-        ? prev.preferredModels.filter((m) => m !== model)
-        : [...prev.preferredModels, model],
-    }));
-  };
-
-  const aiModels: { id: PreferredModel; label: string; provider: string; desc: string }[] = [
-    { id: 'openai', label: 'GPT-4o', provider: 'OpenAI', desc: 'Advanced reasoning, strong with pattern recognition and market structure' },
-    { id: 'anthropic', label: 'Claude Sonnet', provider: 'Anthropic', desc: 'Nuanced analysis with detailed risk assessment and scenario planning' },
-  ];
-
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* AI Models */}
       <Card>
-        <h2 className="text-lg font-semibold text-off-white mb-1">AI Models</h2>
-        <p className="text-sm text-slate-custom mb-5">
-          Select which models power your trade strategy analysis.
+        <h2 className="text-lg font-semibold text-off-white mb-1">API-aanroepen (LLM)</h2>
+        <p className="text-sm text-slate-custom mb-4">
+          Zet betaalde Anthropic (Claude)-aanroepen uit om geen kosten te maken (bijv. alleen UI bekijken).
+          Op de server kun je daarnaast <span className="font-mono text-off-white/80">DISABLE_LLM_CALLS=true</span> zetten.
         </p>
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={settings.llmCallsEnabled}
+            onChange={(e) => setSettings({ ...settings, llmCallsEnabled: e.target.checked })}
+            className="mt-1 rounded border-[#1E1E28] bg-[#0A0A0B] text-ai-blue focus:ring-ai-blue/40"
+            aria-label="LLM API-aanroepen toestaan"
+          />
+          <span>
+            <span className="text-sm text-off-white font-medium">LLM-aanroepen toestaan</span>
+            <span className="block text-xs text-slate-custom mt-1">
+              Geldt voor koop-/verkoopsignalen en trade strategy analyzer. Prijsgrafiek (Binance) blijft werken.
+            </span>
+          </span>
+        </label>
+      </Card>
 
-        <div className="space-y-3">
-          {aiModels.map((model) => {
-            const isSelected = settings.preferredModels.includes(model.id);
-            return (
-              <button
-                key={model.id}
-                onClick={() => toggleModel(model.id)}
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left ${
-                  isSelected
-                    ? 'border-ai-blue/50 bg-ai-blue/10'
-                    : 'border-[#1E1E28] bg-[#0A0A0B] hover:border-[#2E2E38]'
-                }`}
-                aria-pressed={isSelected}
-              >
-                <div
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    isSelected ? 'border-ai-blue bg-ai-blue' : 'border-[#3E3E4E]'
-                  }`}
-                >
-                  {isSelected && (
-                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-off-white text-sm">{model.label}</p>
-                  <p className="text-xs text-slate-custom font-mono mt-0.5">
-                    {model.provider} &middot; {model.desc}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+      <Card>
+        <h2 className="text-lg font-semibold text-off-white mb-1">AI-model</h2>
+        <p className="text-sm text-slate-custom">
+          De app gebruikt alleen <span className="text-off-white/90">Anthropic Claude Sonnet</span> voor signalen en
+          strategy-analyse. Er is geen OpenAI-integratie meer.
+        </p>
       </Card>
 
       {/* Trading Defaults */}
@@ -157,10 +152,7 @@ export default function SettingsForm() {
         </p>
 
         <div className="space-y-2.5">
-          {[
-            { label: 'OpenAI API Key', env: 'OPENAI_API_KEY', required: true },
-            { label: 'Anthropic API Key', env: 'ANTHROPIC_API_KEY', required: true },
-          ].map((item) => (
+          {[{ label: 'Anthropic API Key', env: 'ANTHROPIC_API_KEY', required: true }].map((item) => (
             <div
               key={item.env}
               className="flex items-center justify-between p-3.5 bg-[#0A0A0B] border border-[#1E1E28] rounded-lg"

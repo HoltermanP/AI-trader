@@ -8,6 +8,17 @@ export type TradingSignalsMeta = {
   chartInterval: string;
 };
 
+/** Tokengebruik + geschatte kosten voor één modelaanroep (signalen-endpoint). */
+export type TradingSignalsUsage = {
+  provider: 'anthropic';
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  /** Geschat op basis van lib/llm-cost.ts */
+  estimatedUsd: number;
+};
+
 export type SignalDirection = 'BUY' | 'SELL' | 'HOLD';
 export type SignalConfidence = 'Low' | 'Medium' | 'High';
 

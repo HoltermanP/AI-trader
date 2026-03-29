@@ -4,18 +4,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { TRADE_PAIRS } from '@/lib/crypto-pairs';
-import type { PairSignal, SignalDirection, TradingSignalsMeta } from '@/lib/trading-signals';
+import { isLlmCallsEnabledClient } from '@/lib/settings-storage';
+import type {
+  PairSignal,
+  SignalDirection,
+  TradingSignalsMeta,
+  TradingSignalsUsage,
+} from '@/lib/trading-signals';
 
 const TIMEFRAMES = ['15m', '1h', '4h', '1d', '1w'];
 const RISK_LEVELS = ['Conservative', 'Moderate', 'Aggressive'];
 const REFRESH_MS = 15 * 60 * 1000;
 
-type ModelKey = 'openai' | 'anthropic';
-
 type PanelState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'done'; signals: PairSignal[] }
+  | { status: 'done'; signals: PairSignal[]; usage?: TradingSignalsUsage }
   | { status: 'error'; message: string };
 
 function signalBadgeClasses(signal: SignalDirection): string {
@@ -41,16 +45,14 @@ function signalLabelNl(signal: SignalDirection): string {
 }
 
 async function fetchSignals(
-  model: ModelKey,
   timeframe: string,
   riskLevel: string,
   additionalContext: string,
-): Promise<{ signals: PairSignal[]; meta: TradingSignalsMeta }> {
+): Promise<{ signals: PairSignal[]; meta: TradingSignalsMeta; usage?: TradingSignalsUsage }> {
   const response = await fetch('/api/trading-signals', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model,
       timeframe,
       riskLevel,
       additionalContext: additionalContext || undefined,
@@ -60,6 +62,7 @@ async function fetchSignals(
   const data = (await response.json()) as {
     signals?: PairSignal[];
     meta?: TradingSignalsMeta;
+    usage?: TradingSignalsUsage;
     error?: string;
   };
 
@@ -79,7 +82,13 @@ async function fetchSignals(
     chartInterval: timeframe,
   };
 
-  return { signals: data.signals, meta };
+  return { signals: data.signals, meta, usage: data.usage };
+}
+
+function formatUsd(n: number): string {
+  if (n < 0.0001) return n.toExponential(2);
+  if (n < 0.01) return n.toFixed(4);
+  return n.toFixed(3);
 }
 
 function formatNlTime(iso: string): string {
@@ -98,14 +107,15 @@ export default function TradingSignalsPanel() {
   const [timeframe, setTimeframe] = useState('15m');
   const [riskLevel, setRiskLevel] = useState('Moderate');
   const [additionalContext, setAdditionalContext] = useState('');
-  const [openaiState, setOpenaiState] = useState<PanelState>({ status: 'idle' });
-  const [anthropicState, setAnthropicState] = useState<PanelState>({ status: 'idle' });
+  const [signalsState, setSignalsState] = useState<PanelState>({ status: 'idle' });
   const [isLoading, setIsLoading] = useState(false);
   const [bgRefresh, setBgRefresh] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastMeta, setLastMeta] = useState<TradingSignalsMeta | null>(null);
   const [nextRefreshAt, setNextRefreshAt] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<string>('');
+  const [llmCallsEnabled, setLlmCallsEnabled] = useState(true);
+  const [sessionSignalsCostUsd, setSessionSignalsCostUsd] = useState(0);
 
   const busyRef = useRef(false);
   const autoRefreshRef = useRef(autoRefresh);
@@ -124,20 +134,37 @@ export default function TradingSignalsPanel() {
     formRef.current = { timeframe, riskLevel, additionalContext };
   }, [timeframe, riskLevel, additionalContext]);
 
+  useEffect(() => {
+    const sync = () => setLlmCallsEnabled(isLlmCallsEnabledClient());
+    sync();
+    window.addEventListener('storage', sync);
+    window.addEventListener('ai-trader-settings-updated', sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener('ai-trader-settings-updated', sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!llmCallsEnabled) {
+      setNextRefreshAt(null);
+    }
+  }, [llmCallsEnabled]);
+
   const scheduleNext = useCallback(() => {
     setNextRefreshAt(Date.now() + REFRESH_MS);
   }, []);
 
   const runFetch = useCallback(
     async (mode: 'manual' | 'auto') => {
+      if (!isLlmCallsEnabledClient()) return;
       if (busyRef.current) return;
       busyRef.current = true;
 
       const manual = mode === 'manual';
       if (manual) {
         setIsLoading(true);
-        setOpenaiState({ status: 'loading' });
-        setAnthropicState({ status: 'loading' });
+        setSignalsState({ status: 'loading' });
       } else {
         setBgRefresh(true);
       }
@@ -145,32 +172,19 @@ export default function TradingSignalsPanel() {
       const f = formRef.current;
 
       try {
-        const settled = await Promise.allSettled([
-          fetchSignals('openai', f.timeframe, f.riskLevel, f.additionalContext),
-          fetchSignals('anthropic', f.timeframe, f.riskLevel, f.additionalContext),
-        ]);
-
-        const [oRes, aRes] = settled;
-
-        if (oRes.status === 'fulfilled') {
-          setOpenaiState({ status: 'done', signals: oRes.value.signals });
-          setLastMeta(oRes.value.meta);
-        } else {
-          const msg = oRes.reason instanceof Error ? oRes.reason.message : 'OpenAI-verzoek mislukt';
-          setOpenaiState({ status: 'error', message: msg });
-        }
-
-        if (aRes.status === 'fulfilled') {
-          setAnthropicState({ status: 'done', signals: aRes.value.signals });
-          if (oRes.status !== 'fulfilled') setLastMeta(aRes.value.meta);
-        } else {
-          const msg = aRes.reason instanceof Error ? aRes.reason.message : 'Anthropic-verzoek mislukt';
-          setAnthropicState({ status: 'error', message: msg });
-        }
-
-        if (oRes.status === 'fulfilled' || aRes.status === 'fulfilled') {
-          scheduleNext();
-        }
+        const result = await fetchSignals(f.timeframe, f.riskLevel, f.additionalContext);
+        setSignalsState({
+          status: 'done',
+          signals: result.signals,
+          usage: result.usage,
+        });
+        setLastMeta(result.meta);
+        const runCost = result.usage?.estimatedUsd ?? 0;
+        if (runCost > 0) setSessionSignalsCostUsd((s) => s + runCost);
+        scheduleNext();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Anthropic (Claude)-verzoek mislukt';
+        setSignalsState({ status: 'error', message: msg });
       } finally {
         busyRef.current = false;
         setIsLoading(false);
@@ -181,7 +195,7 @@ export default function TradingSignalsPanel() {
   );
 
   useEffect(() => {
-    if (!nextRefreshAt || !autoRefresh) {
+    if (!nextRefreshAt || !autoRefresh || !llmCallsEnabled) {
       setCountdown('');
       return;
     }
@@ -194,10 +208,10 @@ export default function TradingSignalsPanel() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [nextRefreshAt, autoRefresh]);
+  }, [nextRefreshAt, autoRefresh, llmCallsEnabled]);
 
   useEffect(() => {
-    if (!autoRefresh || nextRefreshAt == null) return;
+    if (!autoRefresh || nextRefreshAt == null || !llmCallsEnabled) return;
 
     const delay = Math.max(0, nextRefreshAt - Date.now());
     const id = window.setTimeout(() => {
@@ -214,10 +228,11 @@ export default function TradingSignalsPanel() {
     }, delay);
 
     return () => window.clearTimeout(id);
-  }, [nextRefreshAt, autoRefresh, runFetch, scheduleNext]);
+  }, [nextRefreshAt, autoRefresh, runFetch, scheduleNext, llmCallsEnabled]);
 
   useEffect(() => {
     const onVis = () => {
+      if (!isLlmCallsEnabledClient()) return;
       const target = nextRefreshAtRef.current;
       if (document.visibilityState !== 'visible' || !autoRefreshRef.current || target == null) return;
       const late = Date.now() > target + 2000;
@@ -232,15 +247,15 @@ export default function TradingSignalsPanel() {
   const handleGenerate = () => void runFetch('manual');
 
   const handleReset = () => {
-    setOpenaiState({ status: 'idle' });
-    setAnthropicState({ status: 'idle' });
+    setSignalsState({ status: 'idle' });
     setLastMeta(null);
     setNextRefreshAt(null);
+    setSessionSignalsCostUsd(0);
   };
 
   const handleAutoToggle = (on: boolean) => {
     setAutoRefresh(on);
-    if (on && (openaiState.status === 'done' || anthropicState.status === 'done')) {
+    if (on && signalsState.status === 'done') {
       scheduleNext();
     }
     if (!on) {
@@ -252,9 +267,7 @@ export default function TradingSignalsPanel() {
   const selectClass =
     'w-full bg-[#0A0A0B] border border-[#1E1E28] rounded-lg px-3 py-2.5 text-off-white text-sm focus:outline-none focus:border-ai-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
-  const showAnyResult =
-    openaiState.status !== 'idle' ||
-    anthropicState.status !== 'idle';
+  const showAnyResult = signalsState.status !== 'idle';
 
   return (
     <div className="space-y-6">
@@ -263,7 +276,7 @@ export default function TradingSignalsPanel() {
           <div>
             <h2 className="text-xl font-semibold text-off-white">Koop- en verkoopsignalen</h2>
             <p className="text-xs font-mono text-slate-custom mt-1">
-              {TRADE_PAIRS.length} CRYPTOCURRENCY-PAREN &middot; BINANCE + INDICATOREN + NIEUWS &middot; GPT-4o + CLAUDE
+              {TRADE_PAIRS.length} CRYPTOCURRENCY-PAREN &middot; BINANCE + INDICATOREN + NIEUWS &middot; CLAUDE (ANTHROPIC)
             </p>
             <p className="text-sm text-slate-custom mt-2 max-w-3xl">
               Signalen gebruiken actuele koersen (24u), RSI(14) en MACD-stijl trend op de gekozen timeframe, plus
@@ -271,6 +284,12 @@ export default function TradingSignalsPanel() {
               Optioneel: stel <span className="font-mono text-off-white/80">NEWSAPI_KEY</span> in voor extra artikelen.
               Live X/Twitter-posts zitten niet standaard in de feed (vereist aparte API).
             </p>
+            {!llmCallsEnabled && (
+              <p className="text-sm text-amber-400/95 mt-3 max-w-3xl">
+                LLM-aanroepen staan uit in Instellingen. Schakel ze in om signalen te genereren, of zet op de server{' '}
+                <span className="font-mono text-off-white/90">DISABLE_LLM_CALLS</span> om te controleren of de server blokkeert.
+              </p>
+            )}
             {lastMeta && (
               <p className="text-xs font-mono text-slate-custom mt-3 space-x-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span>
@@ -301,7 +320,16 @@ export default function TradingSignalsPanel() {
                 )}
               </p>
             )}
-            {autoRefresh && nextRefreshAt != null && countdown && (
+            {(lastMeta || sessionSignalsCostUsd > 0) && (
+              <p
+                className="text-xs font-mono text-slate-custom mt-2"
+                title="Geschat op basis van token-tellingen per aanroep; tarieven in lib/llm-cost.ts"
+              >
+                Sessie (signalen), geschat:{' '}
+                <span className="text-off-white/90">${formatUsd(sessionSignalsCostUsd)}</span> USD
+              </p>
+            )}
+            {autoRefresh && nextRefreshAt != null && countdown && llmCallsEnabled && (
               <p className="text-xs text-slate-custom mt-1">
                 Volgende automatische update over <span className="text-off-white font-mono">{countdown}</span>
               </p>
@@ -313,7 +341,8 @@ export default function TradingSignalsPanel() {
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => handleAutoToggle(e.target.checked)}
-                className="rounded border-[#1E1E28] bg-[#0A0A0B] text-ai-blue focus:ring-ai-blue/40"
+                disabled={!llmCallsEnabled}
+                className="rounded border-[#1E1E28] bg-[#0A0A0B] text-ai-blue focus:ring-ai-blue/40 disabled:opacity-40"
                 aria-label="Automatisch elke 15 minuten verversen"
               />
               Elke 15 min automatisch verversen
@@ -368,7 +397,7 @@ export default function TradingSignalsPanel() {
           <div className="sm:col-span-2 lg:col-span-2 flex flex-col justify-end">
             <Button
               onClick={handleGenerate}
-              disabled={isLoading}
+              disabled={isLoading || !llmCallsEnabled}
               variant="primary"
               className="w-full"
               aria-label="Genereer signalen voor alle paren"
@@ -410,10 +439,7 @@ export default function TradingSignalsPanel() {
       </Card>
 
       {showAnyResult && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SignalsTable title="GPT-4o" subtitle="OpenAI" state={openaiState} />
-          <SignalsTable title="Claude Sonnet" subtitle="Anthropic" state={anthropicState} />
-        </div>
+        <SignalsTable title="Claude Sonnet" subtitle="Anthropic" state={signalsState} />
       )}
     </div>
   );
@@ -445,6 +471,16 @@ function SignalsTable({
 
       {state.status === 'done' && (
         <div className="overflow-x-auto -mx-1">
+          {state.usage && (
+            <p className="text-[11px] font-mono text-slate-custom mb-3 pb-3 border-b border-[#1E1E28]/80">
+              Tokens: in {state.usage.promptTokens.toLocaleString('nl-NL')} · uit{' '}
+              {state.usage.completionTokens.toLocaleString('nl-NL')} · totaal{' '}
+              {state.usage.totalTokens.toLocaleString('nl-NL')}
+              <span className="text-[#1E1E28] mx-2">|</span>
+              Geschat: <span className="text-emerald-400/90">${formatUsd(state.usage.estimatedUsd)}</span> USD (
+              {state.usage.model})
+            </p>
+          )}
           <table className="w-full text-sm text-left border-collapse min-w-[320px]">
             <thead>
               <tr className="border-b border-[#1E1E28] text-[10px] font-mono text-slate-custom uppercase tracking-[0.1em]">

@@ -1,27 +1,49 @@
 import { NextRequest } from 'next/server';
-import { openai, anthropic, buildMultiPairSignalsPrompt } from '@/lib/ai';
+import { anthropic, buildMultiPairSignalsPrompt } from '@/lib/ai';
+import { estimateAnthropicSonnetUsd } from '@/lib/llm-cost';
+import { isLlmDisabledByEnv } from '@/lib/llm-disabled';
 import { buildMarketSnapshot } from '@/lib/market-snapshot';
 import { buildNewsDigest } from '@/lib/news/headlines';
-import { normalizeSignalsPayload, extractJsonObject, type TradingSignalsMeta } from '@/lib/trading-signals';
+import {
+  normalizeSignalsPayload,
+  extractJsonObject,
+  type TradingSignalsMeta,
+  type TradingSignalsUsage,
+} from '@/lib/trading-signals';
 
 const SYSTEM_SIGNALS =
   'You are a disciplined crypto market analyst. You receive real Binance OHLCV-derived indicators and recent news headlines in the user message — weigh technicals, 24h price action, and macro/news when forming each signal. Output only valid JSON when asked. Signals are educational opinions, not financial advice.';
 
 export async function POST(req: NextRequest) {
   try {
+    if (isLlmDisabledByEnv()) {
+      return new Response(
+        JSON.stringify({
+          error: 'LLM-aanroepen staan uit (DISABLE_LLM_CALLS in serveromgeving).',
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
     const body = (await req.json()) as {
-      model: string;
       timeframe: string;
       riskLevel: string;
       additionalContext?: string;
     };
 
-    const { model, timeframe, riskLevel, additionalContext } = body;
+    const { timeframe, riskLevel, additionalContext } = body;
 
-    if (!model || !timeframe || !riskLevel) {
+    if (!timeframe || !riskLevel) {
       return new Response(
-        JSON.stringify({ error: 'Ontbrekende velden: model, timeframe, riskLevel' }),
+        JSON.stringify({ error: 'Ontbrekende velden: timeframe, riskLevel' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: 'ANTHROPIC_API_KEY ontbreekt in de omgeving.' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
       );
     }
 
@@ -46,73 +68,38 @@ export async function POST(req: NextRequest) {
       chartInterval: market.interval,
     };
 
-    if (model === 'openai') {
-      if (!process.env.OPENAI_API_KEY) {
-        return new Response(
-          JSON.stringify({ error: 'OPENAI_API_KEY ontbreekt in de omgeving.' }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } },
-        );
-      }
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: SYSTEM_SIGNALS,
+      messages: [{ role: 'user', content: prompt }],
+    });
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_SIGNALS },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.35,
-        max_tokens: 4096,
-      });
+    const textBlock = msg.content.find((b) => b.type === 'text');
+    const rawText = textBlock && textBlock.type === 'text' ? textBlock.text : '{}';
+    const jsonStr = extractJsonObject(rawText);
 
-      const raw = completion.choices[0]?.message?.content ?? '{}';
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = {};
-      }
-
-      const signals = normalizeSignalsPayload(parsed);
-      return new Response(JSON.stringify({ signals, meta }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      parsed = {};
     }
 
-    if (model === 'anthropic') {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        return new Response(
-          JSON.stringify({ error: 'ANTHROPIC_API_KEY ontbreekt in de omgeving.' }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } },
-        );
-      }
-
-      const msg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: SYSTEM_SIGNALS,
-        messages: [{ role: 'user', content: prompt }],
-      });
-
-      const textBlock = msg.content.find((b) => b.type === 'text');
-      const rawText = textBlock && textBlock.type === 'text' ? textBlock.text : '{}';
-      const jsonStr = extractJsonObject(rawText);
-
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(jsonStr);
-      } catch {
-        parsed = {};
-      }
-
-      const signals = normalizeSignalsPayload(parsed);
-      return new Response(JSON.stringify({ signals, meta }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    return new Response(JSON.stringify({ error: 'Ongeldig model. Gebruik "openai" of "anthropic".' }), {
-      status: 400,
+    const signals = normalizeSignalsPayload(parsed);
+    const u = msg.usage;
+    const promptTokens = u?.input_tokens ?? 0;
+    const completionTokens = u?.output_tokens ?? 0;
+    const totalTokens = promptTokens + completionTokens;
+    const usage: TradingSignalsUsage = {
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-6',
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      estimatedUsd: estimateAnthropicSonnetUsd(promptTokens, completionTokens),
+    };
+    return new Response(JSON.stringify({ signals, meta, usage }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {

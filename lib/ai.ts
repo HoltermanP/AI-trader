@@ -1,10 +1,5 @@
-import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { TRADE_PAIRS } from '@/lib/crypto-pairs';
-
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -15,16 +10,29 @@ export type TradingAnalysisParams = {
   timeframe: string;
   riskLevel: string;
   additionalContext?: string;
+  /** Binance koers + RSI + MACD-stijl trend voor het gekozen paar */
+  marketDataBlock?: string;
+  /** Optioneel: headlines (macro/crypto) */
+  newsDigestBlock?: string;
 };
 
 export function buildTradingPrompt(params: TradingAnalysisParams): string {
-  return `Analyze the following crypto trading scenario and provide a comprehensive, actionable strategy:
+  const marketSection =
+    params.marketDataBlock?.trim() ?
+      `\n## Live market data (Binance, indicators on selected timeframe)\n${params.marketDataBlock.trim()}\n`
+      : '';
+  const newsSection =
+    params.newsDigestBlock?.trim() ?
+      `\n## Recent news & macro headlines\n${params.newsDigestBlock.trim()}\n`
+      : '';
+
+  return `Analyze the following crypto trading scenario and provide a comprehensive, actionable strategy. Base your technical read primarily on the live market data below when present; incorporate headlines only where they add relevant context.
 
 **Trading Pair:** ${params.pair}
 **Timeframe:** ${params.timeframe}
 **Risk Level:** ${params.riskLevel}
 ${params.additionalContext ? `**Additional Context:** ${params.additionalContext}` : ''}
-
+${marketSection}${newsSection}
 Structure your analysis with the following sections:
 
 ## 1. Market Analysis
