@@ -1,0 +1,26 @@
+import type { Metadata } from 'next';
+import KPIGrid from '@/components/dashboard/KPIGrid';
+import TradeStrategyAnalyzer from '@/components/dashboard/TradeStrategyAnalyzer';
+
+export const metadata: Metadata = {
+  title: 'Dashboard | AI-Trader',
+};
+
+export default function DashboardPage() {
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-off-white mb-1 tracking-tight">
+          Trading Dashboard
+        </h1>
+        <p className="text-xs font-mono text-slate-custom tracking-[0.15em]">
+          <span className="text-blue-light">AI</span>-FIRST CRYPTO ANALYSIS &middot; POWERED BY GPT-4o &amp; CLAUDE SONNET
+        </p>
+      </div>
+
+      <KPIGrid />
+
+      <TradeStrategyAnalyzer />
+    </div>
+  );
+}

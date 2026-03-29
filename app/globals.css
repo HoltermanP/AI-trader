@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ai-blue: #2D6FE8;
+  --blue-light: #4B8EFF;
+  --velocity-red: #FF4D1C;
+  --deep-black: #0A0A0B;
+  --surface: #111116;
+  --navy: #0D1428;
+  --off-white: #F4F6FA;
+  --slate: #6B82A8;
+}
+
+html,
+body {
+  background-color: #0A0A0B;
+  color: #F4F6FA;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111116;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E1E28;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2D6FE8;
+}
+
+/* Markdown styles for AI responses */
+.ai-response h1,
+.ai-response h2,
+.ai-response h3 {
+  color: #F4F6FA;
+  font-weight: 600;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+}
+
+.ai-response h1 { font-size: 1.15rem; }
+.ai-response h2 { font-size: 1.05rem; }
+.ai-response h3 { font-size: 0.95rem; }
+
+.ai-response p {
+  margin-bottom: 0.75em;
+  line-height: 1.65;
+  color: #F4F6FA;
+}
+
+.ai-response ul,
+.ai-response ol {
+  margin-left: 1.25rem;
+  margin-bottom: 0.75em;
+}
+
+.ai-response li {
+  margin-bottom: 0.3em;
+  color: #F4F6FA;
+  line-height: 1.55;
+}
+
+.ai-response strong {
+  color: #4B8EFF;
+  font-weight: 600;
+}
+
+.ai-response em {
+  color: #6B82A8;
+  font-style: italic;
+}
+
+.ai-response code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.875em;
+  background: #1E1E28;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  color: #4B8EFF;
+}
+
+.ai-response pre {
+  background: #1E1E28;
+  padding: 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 0.75em;
+}
+
+.ai-response pre code {
+  background: none;
+  padding: 0;
+}
+
+.ai-response blockquote {
+  border-left: 3px solid #2D6FE8;
+  padding-left: 1em;
+  margin-left: 0;
+  color: #6B82A8;
+  margin-bottom: 0.75em;
+}
+
+.ai-response table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75em;
+  font-size: 0.875rem;
+}
+
+.ai-response th,
+.ai-response td {
+  border: 1px solid #1E1E28;
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.ai-response th {
+  background: #1E1E28;
+  color: #4B8EFF;
+  font-weight: 600;
+}
+
+/* Streaming cursor animation */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-cursor::after {
+  content: '▋';
+  display: inline-block;
+  color: #4B8EFF;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+}
