@@ -94,7 +94,8 @@ export default function CryptoImpactNewsPanel() {
               <>
                 {state.data.fetchedBeforeFilter} ruwe koppen gescand · Bron:{' '}
                 {state.data.sourcesUsed.join(', ')} · {formatNlTime(state.data.fetchedAt)}
-                {!state.data.headlinesTranslated && ' · koppen Engels (LLM uit of vertaling mislukt)'}
+                {!state.data.headlinesTranslated &&
+                  ' · koppen Engels (geen geslaagde vertaling — check ANTHROPIC_API_KEY en dev-serverlogs)'}
               </>
             : <>
                 Geen impact-headlines nu ({state.data.fetchedBeforeFilter} ruwe items opgehaald).

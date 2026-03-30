@@ -77,7 +77,8 @@ export default function SettingsForm() {
         <h2 className="text-lg font-semibold text-off-white mb-1">API-aanroepen (LLM)</h2>
         <p className="text-sm text-slate-custom mb-4">
           Zet betaalde Anthropic (Claude)-aanroepen uit om geen kosten te maken (bijv. alleen UI bekijken).
-          Op de server kun je daarnaast <span className="font-mono text-off-white/80">DISABLE_LLM_CALLS=true</span> zetten.
+          Op de server kun je <span className="font-mono text-off-white/80">DISABLE_LLM_CALLS=true</span> zetten (blokkeert alleen
+          signalen en trade-strategy; nieuwsvertaling op het dashboard blijft Anthropic gebruiken als de key staat).
         </p>
         <label className="flex items-start gap-3 cursor-pointer select-none">
           <input
