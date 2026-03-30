@@ -148,11 +148,23 @@ export default function SettingsForm() {
       <Card>
         <h2 className="text-lg font-semibold text-off-white mb-1">API Keys</h2>
         <p className="text-sm text-slate-custom mb-5">
-          Keys are loaded from environment variables — never stored in the browser.
+          Keys worden uit environment variables geladen — nooit in de browser. Kraken-keys zijn voor Spot op{' '}
+          <span className="font-mono text-off-white/80">api.kraken.com</span> (geen paper); houd{' '}
+          <span className="font-mono text-off-white/80">AUTO_TRADING_ENABLED</span> lokaal uit tot je klaar bent om te
+          testen.
         </p>
 
         <div className="space-y-2.5">
-          {[{ label: 'Anthropic API Key', env: 'ANTHROPIC_API_KEY', required: true }].map((item) => (
+          {[
+            { label: 'Anthropic API Key', env: 'ANTHROPIC_API_KEY', required: true },
+            { label: 'Kraken API Key', env: 'KRAKEN_API_KEY', required: false },
+            {
+              label: 'Kraken API Secret (Private, base64)',
+              env: 'KRAKEN_API_SECRET',
+              required: false,
+            },
+            { label: 'Kraken REST basis-URL (optioneel)', env: 'KRAKEN_API_BASE_URL', required: false },
+          ].map((item) => (
             <div
               key={item.env}
               className="flex items-center justify-between p-3.5 bg-[#0A0A0B] border border-[#1E1E28] rounded-lg"

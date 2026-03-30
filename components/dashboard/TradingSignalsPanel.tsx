@@ -44,6 +44,12 @@ function signalLabelNl(signal: SignalDirection): string {
   }
 }
 
+function signalToKrakenSide(signal: SignalDirection): 'buy' | 'sell' | null {
+  if (signal === 'BUY') return 'buy';
+  if (signal === 'SELL') return 'sell';
+  return null;
+}
+
 async function fetchSignals(
   timeframe: string,
   riskLevel: string,
@@ -116,6 +122,13 @@ export default function TradingSignalsPanel() {
   const [countdown, setCountdown] = useState<string>('');
   const [llmCallsEnabled, setLlmCallsEnabled] = useState(true);
   const [sessionSignalsCostUsd, setSessionSignalsCostUsd] = useState(0);
+  const [krakenNotionalUsdt, setKrakenNotionalUsdt] = useState('25');
+  const [krakenExecutingPair, setKrakenExecutingPair] = useState<string | null>(null);
+  const [krakenFeedback, setKrakenFeedback] = useState<{
+    pair: string;
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   const busyRef = useRef(false);
   const autoRefreshRef = useRef(autoRefresh);
@@ -263,6 +276,67 @@ export default function TradingSignalsPanel() {
       setCountdown('');
     }
   };
+
+  const executeKrakenForRow = useCallback(async (row: PairSignal) => {
+    const side = signalToKrakenSide(row.signal);
+    if (!side) return;
+
+    const notional = Number(krakenNotionalUsdt.replace(',', '.'));
+    if (!Number.isFinite(notional) || notional <= 0) {
+      setKrakenFeedback({
+        pair: row.pair,
+        ok: false,
+        message: 'Vul een geldig bedrag in USDT in.',
+      });
+      return;
+    }
+
+    const ok = window.confirm(
+      `Kraken Spot (${side === 'buy' ? 'kopen' : 'verkopen'}): ongeveer ${notional} USDT aan ${row.pair} — doorgaan?`,
+    );
+    if (!ok) return;
+
+    setKrakenExecutingPair(row.pair);
+    setKrakenFeedback(null);
+
+    try {
+      const response = await fetch('/api/execute-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pair: row.pair,
+          side,
+          notionalUsd: notional,
+          source: 'signals-panel',
+          confidence: row.confidence,
+        }),
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        order?: { txid?: string[]; descr_order?: string };
+      };
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? `HTTP ${response.status}`);
+      }
+
+      const tx = data.order?.txid?.[0];
+      setKrakenFeedback({
+        pair: row.pair,
+        ok: true,
+        message: tx ? `Order geplaatst (txid: ${tx}).` : (data.order?.descr_order ?? 'Order geplaatst.'),
+      });
+    } catch (e) {
+      setKrakenFeedback({
+        pair: row.pair,
+        ok: false,
+        message: e instanceof Error ? e.message : 'Kraken-aanroep mislukt.',
+      });
+    } finally {
+      setKrakenExecutingPair(null);
+    }
+  }, [krakenNotionalUsdt]);
 
   const selectClass =
     'w-full bg-[#0A0A0B] border border-[#1E1E28] rounded-lg px-3 py-2.5 text-off-white text-sm focus:outline-none focus:border-ai-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
@@ -439,7 +513,16 @@ export default function TradingSignalsPanel() {
       </Card>
 
       {showAnyResult && (
-        <SignalsTable title="Claude Sonnet" subtitle="Anthropic" state={signalsState} />
+        <SignalsTable
+          title="Claude Sonnet"
+          subtitle="Anthropic"
+          state={signalsState}
+          krakenNotionalUsdt={krakenNotionalUsdt}
+          onKrakenNotionalChange={setKrakenNotionalUsdt}
+          krakenExecutingPair={krakenExecutingPair}
+          krakenFeedback={krakenFeedback}
+          onExecuteKraken={executeKrakenForRow}
+        />
       )}
     </div>
   );
@@ -449,11 +532,24 @@ function SignalsTable({
   title,
   subtitle,
   state,
+  krakenNotionalUsdt,
+  onKrakenNotionalChange,
+  krakenExecutingPair,
+  krakenFeedback,
+  onExecuteKraken,
 }: {
   title: string;
   subtitle: string;
   state: PanelState;
+  krakenNotionalUsdt: string;
+  onKrakenNotionalChange: (v: string) => void;
+  krakenExecutingPair: string | null;
+  krakenFeedback: { pair: string; ok: boolean; message: string } | null;
+  onExecuteKraken: (row: PairSignal) => void | Promise<void>;
 }) {
+  const inputClass =
+    'w-full max-w-[7rem] bg-[#0A0A0B] border border-[#1E1E28] rounded-lg px-2 py-1.5 text-off-white text-sm focus:outline-none focus:border-ai-blue';
+
   return (
     <Card>
       <div className="mb-4">
@@ -481,30 +577,84 @@ function SignalsTable({
               {state.usage.model})
             </p>
           )}
-          <table className="w-full text-sm text-left border-collapse min-w-[320px]">
+
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-4 p-3 rounded-lg bg-[#0A0A0B] border border-[#1E1E28]/90">
+            <div>
+              <label className="block text-[10px] font-mono text-slate-custom uppercase tracking-[0.15em] mb-1.5">
+                Bedrag per order (USDT)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={krakenNotionalUsdt}
+                onChange={(e) => onKrakenNotionalChange(e.target.value)}
+                className={inputClass}
+                aria-label="Orderbedrag in USDT voor Kraken"
+              />
+            </div>
+            <p className="text-xs text-slate-custom leading-relaxed max-w-xl pb-0.5">
+              Uitvoering gaat via je server naar{' '}
+              <span className="font-mono text-off-white/85">/api/execute-trade</span> (Kraken Spot). Limiet en toegestane
+              paren staan in <span className="font-mono text-off-white/85">AUTO_TRADING_*</span>; zet{' '}
+              <span className="font-mono text-off-white/85">AUTO_TRADING_ENABLED=true</span> alleen als je dit bewust
+              wilt.
+            </p>
+          </div>
+
+          {krakenFeedback && (
+            <p
+              className={`text-sm mb-3 font-mono ${krakenFeedback.ok ? 'text-emerald-400/95' : 'text-[#FF8A70]'}`}
+              role="status"
+            >
+              [{krakenFeedback.pair}] {krakenFeedback.message}
+            </p>
+          )}
+
+          <table className="w-full text-sm text-left border-collapse min-w-[560px]">
             <thead>
               <tr className="border-b border-[#1E1E28] text-[10px] font-mono text-slate-custom uppercase tracking-[0.1em]">
                 <th className="py-2 pr-3 font-normal">Pair</th>
                 <th className="py-2 pr-3 font-normal">Signaal</th>
                 <th className="py-2 pr-3 font-normal">Vertrouwen</th>
+                <th className="py-2 pr-3 font-normal">Kraken</th>
                 <th className="py-2 font-normal">Toelichting</th>
               </tr>
             </thead>
             <tbody>
-              {state.signals.map((row) => (
-                <tr key={row.pair} className="border-b border-[#1E1E28]/80 align-top">
-                  <td className="py-2.5 pr-3 font-mono text-off-white whitespace-nowrap">{row.pair}</td>
-                  <td className="py-2.5 pr-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono uppercase tracking-wide ${signalBadgeClasses(row.signal)}`}
-                    >
-                      {signalLabelNl(row.signal)}
-                    </span>
-                  </td>
-                  <td className="py-2.5 pr-3 text-slate-custom whitespace-nowrap">{row.confidence}</td>
-                  <td className="py-2.5 text-slate-custom/95 text-xs leading-snug">{row.rationale}</td>
-                </tr>
-              ))}
+              {state.signals.map((row) => {
+                const side = signalToKrakenSide(row.signal);
+                const busy = krakenExecutingPair === row.pair;
+                return (
+                  <tr key={row.pair} className="border-b border-[#1E1E28]/80 align-top">
+                    <td className="py-2.5 pr-3 font-mono text-off-white whitespace-nowrap">{row.pair}</td>
+                    <td className="py-2.5 pr-3">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono uppercase tracking-wide ${signalBadgeClasses(row.signal)}`}
+                      >
+                        {signalLabelNl(row.signal)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3 text-slate-custom whitespace-nowrap">{row.confidence}</td>
+                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                      {side ? (
+                        <Button
+                          type="button"
+                          variant="primary"
+                          className="text-[11px] px-2.5 py-1 min-w-0"
+                          disabled={busy}
+                          onClick={() => void onExecuteKraken(row)}
+                          aria-label={`Uitvoeren op Kraken: ${row.pair} ${side}`}
+                        >
+                          {busy ? '…' : 'Kraken'}
+                        </Button>
+                      ) : (
+                        <span className="text-[11px] text-slate-custom font-mono">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 text-slate-custom/95 text-xs leading-snug">{row.rationale}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
