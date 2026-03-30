@@ -368,7 +368,7 @@ export default function TradingSignalsPanel() {
             </p>
             <p className="text-sm text-slate-custom mt-2 max-w-3xl">
               Signalen gebruiken actuele koersen (24u), RSI(14) en MACD-stijl trend op de gekozen timeframe, plus
-              recente headlines (o.a. crypto, macro, Trump/tarieven, olie, geopolitiek) via Google News RSS.
+              dezelfde impact-gefilterde headlines als het nieuwsblok (macro, regulering, geopolitiek, enz.).
               Optioneel: stel <span className="font-mono text-off-white/80">NEWSAPI_KEY</span> in voor extra artikelen.
               Live X/Twitter-posts zitten niet standaard in de feed (vereist aparte API).
             </p>

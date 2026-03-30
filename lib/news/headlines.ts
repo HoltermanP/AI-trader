@@ -1,9 +1,13 @@
+import { filterHighImpactHeadlines, type ScoredHeadline } from './impact-filter';
+
 export type NewsHeadline = {
   title: string;
   source: string;
   publishedAt?: string;
   url?: string;
 };
+
+export type { ScoredHeadline };
 
 const FETCH_OPTS: RequestInit = {
   cache: 'no-store',
@@ -144,9 +148,12 @@ function normalizeKey(title: string): string {
 }
 
 export type NewsDigestResult = {
-  headlines: NewsHeadline[];
+  /** Alleen headlines die aan het impactfilter voldoen (crypto/markt-relevant). */
+  headlines: ScoredHeadline[];
   digestText: string;
   sourcesUsed: string[];
+  /** Totaal uniek opgehaald vóór filter (ter info). */
+  fetchedBeforeFilter: number;
 };
 
 export async function buildNewsDigest(): Promise<NewsDigestResult> {
@@ -162,23 +169,19 @@ export async function buildNewsDigest(): Promise<NewsDigestResult> {
     unique.push(h);
   }
 
-  unique.sort((a, b) => {
-    const ta = a.publishedAt ? Date.parse(a.publishedAt) : 0;
-    const tb = b.publishedAt ? Date.parse(b.publishedAt) : 0;
-    return tb - ta;
-  });
+  const fetchedBeforeFilter = unique.length;
 
-  const top = unique.slice(0, 28);
+  const impact = filterHighImpactHeadlines(unique, { maxItems: 28, minScore: 3 });
 
   const sourcesUsed = ['google-news-rss'];
   if (newsApi.length > 0) sourcesUsed.push('newsapi');
 
   const lines: string[] = [
-    'Recente headlines (macro, markten, crypto, geopolitiek, energie). Geen live X/Twitter tenzij apart geconfigureerd — gebruik headlines als proxy voor sociale/markt-sentiment.',
+    'Headlines gefilterd op duidelijke koersimpact (macro/rente, regulering, geopolitiek, banken, cryptostress, energie, tarieven). Lage-signaal items (rages, simpele prijsvoorspellingen) worden weggefilterd.',
     '',
   ];
 
-  if (top.length === 0) {
+  if (unique.length === 0) {
     lines.push(
       '(Geen nieuws opgehaald — controleer netwerk of probeer later opnieuw. Optioneel: stel NEWSAPI_KEY in voor extra bronnen.)',
     );
@@ -186,18 +189,33 @@ export async function buildNewsDigest(): Promise<NewsDigestResult> {
       headlines: [],
       digestText: lines.join('\n'),
       sourcesUsed,
+      fetchedBeforeFilter: 0,
     };
   }
 
-  for (let i = 0; i < top.length; i++) {
-    const h = top[i];
+  if (impact.length === 0) {
+    lines.push(
+      '(Er is wel nieuws opgehaald, maar geen artikel voldoet aan het impactfilter — tijdelijk rustig op macro-/politiek-front volgens onze criteria.)',
+    );
+    return {
+      headlines: [],
+      digestText: lines.join('\n'),
+      sourcesUsed,
+      fetchedBeforeFilter,
+    };
+  }
+
+  for (let i = 0; i < impact.length; i++) {
+    const h = impact[i];
     const when = h.publishedAt ? ` [${h.publishedAt}]` : '';
-    lines.push(`${i + 1}. ${h.title}${when}`);
+    const tags = h.impactCategories.length ? ` — ${h.impactCategories.join(', ')}` : '';
+    lines.push(`${i + 1}. ${h.title}${when}${tags}`);
   }
 
   return {
-    headlines: top,
+    headlines: impact,
     digestText: lines.join('\n'),
     sourcesUsed,
+    fetchedBeforeFilter,
   };
 }

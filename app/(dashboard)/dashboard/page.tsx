@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import CryptoImpactNewsPanel from '@/components/dashboard/CryptoImpactNewsPanel';
 import KPIGrid from '@/components/dashboard/KPIGrid';
 import LivePriceChart from '@/components/dashboard/LivePriceChart';
 import TradeStrategyAnalyzer from '@/components/dashboard/TradeStrategyAnalyzer';
@@ -21,6 +22,8 @@ export default function DashboardPage() {
       </div>
 
       <KPIGrid />
+
+      <CryptoImpactNewsPanel />
 
       <TradingSignalsPanel />
 
