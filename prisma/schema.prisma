@@ -1,0 +1,10 @@
+// Minimaal schema zodat `prisma generate` op CI/Vercel slaagt.
+// Pas provider/url aan wanneer je een echte database gebruikt.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
