@@ -1,11 +1,12 @@
 import crypto from 'crypto';
+import { getKrakenQuoteFromEnv, type KrakenQuoteCurrency } from '@/lib/trading/kraken-quote';
 
 export type TradeSide = 'buy' | 'sell';
 
 const DEFAULT_BASE = 'https://api.kraken.com';
 
-/** Onze UI/signalen (BTC/USDT) → Kraken Spot pair (vaak XBT voor BTC). */
-const TO_KRAKEN_PAIR: Record<string, string> = {
+/** Onze UI/signalen (BTC/USDT) → Kraken Spot pair (vaak XBT voor BTC), quote USDT. */
+const TO_KRAKEN_PAIR_USDT: Record<string, string> = {
   'BTC/USDT': 'XBTUSDT',
   'ETH/USDT': 'ETHUSDT',
   'SOL/USDT': 'SOLUSDT',
@@ -18,6 +19,24 @@ const TO_KRAKEN_PAIR: Record<string, string> = {
   'LINK/USDT': 'LINKUSDT',
 };
 
+/**
+ * Zelfde logische paren, EUR-quote (Kraken API-namen).
+ * NL-accounts: USDT-spot is vaak geblokkeerd — gebruik `KRAKEN_QUOTE=EUR`.
+ * MATIC → POL (Kraken): signaal blijft MATIC/USDT, order gaat naar POL/EUR.
+ */
+const TO_KRAKEN_PAIR_EUR: Record<string, string> = {
+  'BTC/USDT': 'XXBTZEUR',
+  'ETH/USDT': 'XETHZEUR',
+  'SOL/USDT': 'SOLEUR',
+  'BNB/USDT': 'BNBEUR',
+  'XRP/USDT': 'XXRPZEUR',
+  'ADA/USDT': 'ADAEUR',
+  'DOGE/USDT': 'XDGEUR',
+  'AVAX/USDT': 'AVAXEUR',
+  'MATIC/USDT': 'POLEUR',
+  'LINK/USDT': 'LINKEUR',
+};
+
 function getEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -26,16 +45,21 @@ function getEnv(name: string): string {
   return value;
 }
 
-export function toKrakenPair(pair: string): string {
+function pairMapForQuote(quote: KrakenQuoteCurrency): Record<string, string> {
+  return quote === 'EUR' ? TO_KRAKEN_PAIR_EUR : TO_KRAKEN_PAIR_USDT;
+}
+
+export function toKrakenPair(pair: string, quote?: KrakenQuoteCurrency): string {
+  const q = quote ?? getKrakenQuoteFromEnv();
   const key = pair.replace('-', '/').toUpperCase().trim();
-  const mapped = TO_KRAKEN_PAIR[key];
+  const mapped = pairMapForQuote(q)[key];
   if (mapped) return mapped;
-  const [base, quote] = key.split('/');
-  if (!base || !quote) {
+  const [base, rawQuote] = key.split('/');
+  if (!base || !rawQuote) {
     throw new Error(`Ongeldig pair-formaat: ${pair}. Verwacht bijvoorbeeld BTC/USDT.`);
   }
   const krakenBase = base === 'BTC' ? 'XBT' : base;
-  return `${krakenBase}${quote}`;
+  return `${krakenBase}${rawQuote}`;
 }
 
 type KrakenTickerResult = Record<
@@ -53,6 +77,7 @@ function firstTickerEntry(result: KrakenTickerResult): { c: [string, string] } {
   return first;
 }
 
+/** Laatste trade-prijs in de quote van het Kraken-paar (USDT of EUR). */
 export async function getKrakenLastPriceUsdT(krakenPair: string): Promise<number> {
   const base = (process.env.KRAKEN_API_BASE_URL ?? DEFAULT_BASE).replace(/\/+$/, '');
   const url = `${base}/0/public/Ticker?pair=${encodeURIComponent(krakenPair)}`;
@@ -97,13 +122,15 @@ export type KrakenOrderResponse = {
 export async function placeKrakenMarketOrder(input: {
   pair: string;
   side: TradeSide;
+  /** Bij USDT-quote: bedrag in USDT. Bij EUR-quote (`KRAKEN_QUOTE=EUR`): bedrag in EUR. */
   notionalUsd: number;
 }): Promise<KrakenOrderResponse> {
   const apiKey = getEnv('KRAKEN_API_KEY');
   const apiSecret = getEnv('KRAKEN_API_SECRET');
   const base = (process.env.KRAKEN_API_BASE_URL ?? DEFAULT_BASE).replace(/\/+$/, '');
+  const quoteCc = getKrakenQuoteFromEnv();
 
-  const krakenPair = toKrakenPair(input.pair);
+  const krakenPair = toKrakenPair(input.pair, quoteCc);
   const last = await getKrakenLastPriceUsdT(krakenPair);
   const volumeRaw = input.notionalUsd / last;
   const volumeStr = trimVolumeString(volumeRaw);
@@ -138,7 +165,11 @@ export async function placeKrakenMarketOrder(input: {
 
   if (!response.ok || (data.error && data.error.length > 0) || !data.result?.txid?.length) {
     const msg = data.error?.join(', ') ?? `HTTP ${response.status}`;
-    throw new Error(`Kraken order mislukt: ${msg}`);
+    const hint =
+      /USDT trading restricted|Invalid permissions.*USDT/i.test(msg) && quoteCc === 'USDT'
+        ? ' Voor Nederlandse Kraken-accounts is USDT-spot vaak uitgeschakeld. Zet server-side `KRAKEN_QUOTE=EUR` en in `.env` ook `NEXT_PUBLIC_KRAKEN_QUOTE=EUR` (zelfde waarde) zodat orders via EUR-paren lopen; het orderbedrag is dan in euro.'
+        : '';
+    throw new Error(`Kraken order mislukt: ${msg}.${hint}`);
   }
 
   return {

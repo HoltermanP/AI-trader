@@ -129,6 +129,7 @@ export default function TradingSignalsPanel() {
     ok: boolean;
     message: string;
   } | null>(null);
+  const [krakenOrderQuote, setKrakenOrderQuote] = useState<'USDT' | 'EUR'>('USDT');
 
   const busyRef = useRef(false);
   const autoRefreshRef = useRef(autoRefresh);
@@ -138,6 +139,23 @@ export default function TradingSignalsPanel() {
   useEffect(() => {
     autoRefreshRef.current = autoRefresh;
   }, [autoRefresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/kraken-quote', { cache: 'no-store' });
+        const data = (await res.json()) as { quote?: string };
+        if (cancelled || !res.ok) return;
+        if (data.quote?.toUpperCase() === 'EUR') setKrakenOrderQuote('EUR');
+      } catch {
+        /* blijf USDT — serverdefault */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     nextRefreshAtRef.current = nextRefreshAt;
@@ -286,13 +304,13 @@ export default function TradingSignalsPanel() {
       setKrakenFeedback({
         pair: row.pair,
         ok: false,
-        message: 'Vul een geldig bedrag in USDT in.',
+        message: `Vul een geldig bedrag in ${krakenOrderQuote} in.`,
       });
       return;
     }
 
     const ok = window.confirm(
-      `Kraken Spot (${side === 'buy' ? 'kopen' : 'verkopen'}): ongeveer ${notional} USDT aan ${row.pair} — doorgaan?`,
+      `Kraken Spot (${side === 'buy' ? 'kopen' : 'verkopen'}): ongeveer ${notional} ${krakenOrderQuote} aan ${row.pair} — doorgaan?`,
     );
     if (!ok) return;
 
@@ -336,7 +354,7 @@ export default function TradingSignalsPanel() {
     } finally {
       setKrakenExecutingPair(null);
     }
-  }, [krakenNotionalUsdt]);
+  }, [krakenNotionalUsdt, krakenOrderQuote]);
 
   const selectClass =
     'w-full bg-[#0A0A0B] border border-[#1E1E28] rounded-lg px-3 py-2.5 text-off-white text-sm focus:outline-none focus:border-ai-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
@@ -517,6 +535,7 @@ export default function TradingSignalsPanel() {
           title="Claude Sonnet"
           subtitle="Anthropic"
           state={signalsState}
+          krakenOrderQuote={krakenOrderQuote}
           krakenNotionalUsdt={krakenNotionalUsdt}
           onKrakenNotionalChange={setKrakenNotionalUsdt}
           krakenExecutingPair={krakenExecutingPair}
@@ -532,6 +551,7 @@ function SignalsTable({
   title,
   subtitle,
   state,
+  krakenOrderQuote,
   krakenNotionalUsdt,
   onKrakenNotionalChange,
   krakenExecutingPair,
@@ -541,6 +561,7 @@ function SignalsTable({
   title: string;
   subtitle: string;
   state: PanelState;
+  krakenOrderQuote: 'USDT' | 'EUR';
   krakenNotionalUsdt: string;
   onKrakenNotionalChange: (v: string) => void;
   krakenExecutingPair: string | null;
@@ -581,7 +602,7 @@ function SignalsTable({
           <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-4 p-3 rounded-lg bg-[#0A0A0B] border border-[#1E1E28]/90">
             <div>
               <label className="block text-[10px] font-mono text-slate-custom uppercase tracking-[0.15em] mb-1.5">
-                Bedrag per order (USDT)
+                Bedrag per order ({krakenOrderQuote})
               </label>
               <input
                 type="text"
@@ -589,7 +610,7 @@ function SignalsTable({
                 value={krakenNotionalUsdt}
                 onChange={(e) => onKrakenNotionalChange(e.target.value)}
                 className={inputClass}
-                aria-label="Orderbedrag in USDT voor Kraken"
+                aria-label={`Orderbedrag in ${krakenOrderQuote} voor Kraken`}
               />
             </div>
             <p className="text-xs text-slate-custom leading-relaxed max-w-xl pb-0.5">
@@ -597,7 +618,8 @@ function SignalsTable({
               <span className="font-mono text-off-white/85">/api/execute-trade</span> (Kraken Spot). Limiet en toegestane
               paren staan in <span className="font-mono text-off-white/85">AUTO_TRADING_*</span>; zet{' '}
               <span className="font-mono text-off-white/85">AUTO_TRADING_ENABLED=true</span> alleen als je dit bewust
-              wilt.
+              wilt. NL-accounts: zet <span className="font-mono text-off-white/85">KRAKEN_QUOTE=EUR</span> als USDT-spot
+              geblokkeerd is — orders lopen dan tegen EUR-paren (zelfde signaalparen in de UI).
             </p>
           </div>
 

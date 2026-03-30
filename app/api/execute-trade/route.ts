@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { placeKrakenMarketOrder, type TradeSide } from '@/lib/trading/kraken';
+import { getKrakenQuoteFromEnv } from '@/lib/trading/kraken-quote';
 
 type ExecuteTradeBody = {
   pair: string;
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
         guardrails: {
           maxNotionalUsd: maxNotional,
           allowedPairs,
+          krakenQuote: getKrakenQuoteFromEnv(),
         },
       }),
       { headers: { 'Content-Type': 'application/json' } },

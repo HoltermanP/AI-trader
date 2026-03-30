@@ -151,7 +151,9 @@ export default function SettingsForm() {
           Keys worden uit environment variables geladen — nooit in de browser. Kraken-keys zijn voor Spot op{' '}
           <span className="font-mono text-off-white/80">api.kraken.com</span> (geen paper); houd{' '}
           <span className="font-mono text-off-white/80">AUTO_TRADING_ENABLED</span> lokaal uit tot je klaar bent om te
-          testen.
+          testen. Voor accounts in Nederland blokkeert Kraken vaak USDT-handel: zet dan{' '}
+          <span className="font-mono text-off-white/80">KRAKEN_QUOTE=EUR</span> (orders in euro tegen EUR-paren; de UI
+          blijft BTC/USDT enz. tonen voor signalen).
         </p>
 
         <div className="space-y-2.5">
@@ -164,6 +166,11 @@ export default function SettingsForm() {
               required: false,
             },
             { label: 'Kraken REST basis-URL (optioneel)', env: 'KRAKEN_API_BASE_URL', required: false },
+            {
+              label: 'Kraken order-quote: USDT of EUR (NL vaak EUR)',
+              env: 'KRAKEN_QUOTE',
+              required: false,
+            },
           ].map((item) => (
             <div
               key={item.env}
