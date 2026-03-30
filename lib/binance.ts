@@ -1,4 +1,28 @@
-const BINANCE_API = 'https://api.binance.com/api/v3';
+/**
+ * Publieke spot REST — eerst data-api (officiële mirror), daarna api.binance.com.
+ * Cloud-hosts (Vercel/AWS) krijgen vaak 451 of timeouts op api.binance.com; de vision-URL is bedoeld voor marktdata.
+ */
+const BINANCE_REST_BASES = [
+  'https://data-api.binance.vision/api/v3',
+  'https://api.binance.com/api/v3',
+] as const;
+
+const BINANCE_FETCH_HEADERS = {
+  Accept: 'application/json',
+} as const;
+
+async function binancePublicGet(pathAndQuery: string): Promise<Response | null> {
+  for (const base of BINANCE_REST_BASES) {
+    try {
+      const url = `${base}${pathAndQuery.startsWith('/') ? '' : '/'}${pathAndQuery}`;
+      const res = await fetch(url, { cache: 'no-store', headers: BINANCE_FETCH_HEADERS });
+      if (res.ok) return res;
+    } catch {
+      /* volgende mirror */
+    }
+  }
+  return null;
+}
 
 export function pairToBinanceSymbol(pair: string): string {
   return pair.replace('/', '');
@@ -60,11 +84,10 @@ export async function fetchKlines(
 ): Promise<KlineCandle[] | null> {
   try {
     const lim = Math.min(1000, Math.max(1, Math.floor(limit)));
-    const res = await fetch(
-      `${BINANCE_API}/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${lim}`,
-      { cache: 'no-store', headers: { Accept: 'application/json' } },
+    const res = await binancePublicGet(
+      `/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${lim}`,
     );
-    if (!res.ok) return null;
+    if (!res) return null;
     const raw = (await res.json()) as unknown;
     if (!Array.isArray(raw)) return null;
     const out: KlineCandle[] = [];
@@ -94,6 +117,21 @@ export async function fetchKlines(
   }
 }
 
+/** Huidige spotprijs (publiek endpoint, zelfde mirrors als klines). */
+export async function fetchTickerPrice(
+  symbol: string,
+): Promise<{ symbol: string; price: string } | null> {
+  try {
+    const res = await binancePublicGet(`/ticker/price?symbol=${encodeURIComponent(symbol)}`);
+    if (!res) return null;
+    const data = (await res.json()) as { symbol?: string; price?: string };
+    if (data.price == null || data.symbol == null) return null;
+    return { symbol: data.symbol, price: data.price };
+  } catch {
+    return null;
+  }
+}
+
 export type Ticker24h = {
   lastPrice: number;
   priceChangePercent: number;
@@ -104,11 +142,8 @@ export type Ticker24h = {
 
 export async function fetchTicker24h(symbol: string): Promise<Ticker24h | null> {
   try {
-    const res = await fetch(`${BINANCE_API}/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, {
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return null;
+    const res = await binancePublicGet(`/ticker/24hr?symbol=${encodeURIComponent(symbol)}`);
+    if (!res) return null;
     const d = (await res.json()) as {
       lastPrice?: string;
       priceChangePercent?: string;
@@ -137,11 +172,10 @@ export async function fetchCloses(
   limit = 200,
 ): Promise<number[] | null> {
   try {
-    const res = await fetch(
-      `${BINANCE_API}/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`,
-      { cache: 'no-store', headers: { Accept: 'application/json' } },
+    const res = await binancePublicGet(
+      `/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`,
     );
-    if (!res.ok) return null;
+    if (!res) return null;
     const raw = (await res.json()) as [unknown, unknown, unknown, unknown, unknown][];
     if (!Array.isArray(raw)) return null;
     return raw.map((k) => {
