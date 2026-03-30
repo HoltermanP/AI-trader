@@ -11,7 +11,9 @@ type ExecuteTradeBody = {
 };
 
 function getAllowedPairs(): string[] {
-  const raw = process.env.AUTO_TRADING_ALLOWED_PAIRS ?? 'BTC/USDT,ETH/USDT,SOL/USDT';
+  const raw =
+    process.env.AUTO_TRADING_ALLOWED_PAIRS ??
+    'BTC/EUR,ETH/EUR,SOL/EUR,BNB/EUR,XRP/EUR,ADA/EUR,DOGE/EUR,AVAX/EUR,MATIC/EUR,LINK/EUR';
   return raw
     .split(',')
     .map((x) => x.trim().toUpperCase())

@@ -69,7 +69,7 @@ function rowToSummaryLine(r: PairMarketRow): string {
   const rsi = r.rsi14 != null ? formatNum(r.rsi14, 1) : '—';
   const macd =
     r.macdTrend != null ? `${r.macdTrend} (MACD-stijl: EMA12 vs EMA26)` : '—';
-  return `- ${r.pair}: prijs ${price} USDT | 24u ${ch} | RSI(14) ${rsi} | trend ${macd}`;
+  return `- ${r.pair}: prijs ${price} EUR | 24u ${ch} | RSI(14) ${rsi} | trend ${macd}`;
 }
 
 /** Live Binance-snapshot voor één handelspaar (zelfde indicatoren als multi-pair snapshot). */
@@ -82,7 +82,7 @@ export async function buildSinglePairMarketSnapshot(
 
   const lines: string[] = [
     `Timeframe grafiek: ${chartTimeframe} (Binance candles, interval ${interval}).`,
-    `Slotkoers (USDT), 24u %-verandering, RSI(14), MACD-stijl trend (EMA12−EMA26), berekend op basis van OHLCV-sluitkoersen.`,
+    `Slotkoers (EUR), 24u %-verandering, RSI(14), MACD-stijl trend (EMA12−EMA26), berekend op basis van OHLCV-sluitkoersen.`,
     '',
     rowToSummaryLine(row),
   ];
@@ -108,7 +108,7 @@ export async function buildMarketSnapshot(chartTimeframe: string): Promise<Marke
 
   const lines: string[] = [
     `Timeframe grafiek: ${chartTimeframe} (Binance candles, interval ${interval}).`,
-    `Per pair: slotkoers (USDT), 24u %-verandering, RSI(14), MACD-stijl trend (EMA12−EMA26).`,
+    `Per pair: slotkoers (EUR), 24u %-verandering, RSI(14), MACD-stijl trend (EMA12−EMA26).`,
     '',
   ];
 

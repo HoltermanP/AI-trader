@@ -5,8 +5,8 @@ export type TradeSide = 'buy' | 'sell';
 
 const DEFAULT_BASE = 'https://api.kraken.com';
 
-/** Onze UI/signalen (BTC/USDT) → Kraken Spot pair (vaak XBT voor BTC), quote USDT. */
-const TO_KRAKEN_PAIR_USDT: Record<string, string> = {
+/** UI/signalen (quote USDT of EUR) → Kraken Spot pair, quote USDT. */
+const TO_KRAKEN_PAIR_USDT_BASE: Record<string, string> = {
   'BTC/USDT': 'XBTUSDT',
   'ETH/USDT': 'ETHUSDT',
   'SOL/USDT': 'SOLUSDT',
@@ -20,11 +20,10 @@ const TO_KRAKEN_PAIR_USDT: Record<string, string> = {
 };
 
 /**
- * Zelfde logische paren, EUR-quote (Kraken API-namen).
- * NL-accounts: USDT-spot is vaak geblokkeerd — gebruik `KRAKEN_QUOTE=EUR`.
- * MATIC → POL (Kraken): signaal blijft MATIC/USDT, order gaat naar POL/EUR.
+ * Zelfde bases, EUR-quote op Kraken (API-namen).
+ * MATIC → POL (Kraken): signaal MATIC/EUR, order naar POLEUR.
  */
-const TO_KRAKEN_PAIR_EUR: Record<string, string> = {
+const TO_KRAKEN_PAIR_EUR_BASE: Record<string, string> = {
   'BTC/USDT': 'XXBTZEUR',
   'ETH/USDT': 'XETHZEUR',
   'SOL/USDT': 'SOLEUR',
@@ -36,6 +35,19 @@ const TO_KRAKEN_PAIR_EUR: Record<string, string> = {
   'MATIC/USDT': 'POLEUR',
   'LINK/USDT': 'LINKEUR',
 };
+
+function withEurUiAliases(map: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = { ...map };
+  for (const [k, v] of Object.entries(map)) {
+    if (k.includes('/USDT')) {
+      out[k.replace('/USDT', '/EUR')] = v;
+    }
+  }
+  return out;
+}
+
+const TO_KRAKEN_PAIR_USDT = withEurUiAliases(TO_KRAKEN_PAIR_USDT_BASE);
+const TO_KRAKEN_PAIR_EUR = withEurUiAliases(TO_KRAKEN_PAIR_EUR_BASE);
 
 function getEnv(name: string): string {
   const value = process.env[name];
@@ -56,7 +68,7 @@ export function toKrakenPair(pair: string, quote?: KrakenQuoteCurrency): string 
   if (mapped) return mapped;
   const [base, rawQuote] = key.split('/');
   if (!base || !rawQuote) {
-    throw new Error(`Ongeldig pair-formaat: ${pair}. Verwacht bijvoorbeeld BTC/USDT.`);
+    throw new Error(`Ongeldig pair-formaat: ${pair}. Verwacht bijvoorbeeld BTC/EUR of BTC/USDT.`);
   }
   const krakenBase = base === 'BTC' ? 'XBT' : base;
   return `${krakenBase}${rawQuote}`;
@@ -167,7 +179,7 @@ export async function placeKrakenMarketOrder(input: {
     const msg = data.error?.join(', ') ?? `HTTP ${response.status}`;
     const hint =
       /USDT trading restricted|Invalid permissions.*USDT/i.test(msg) && quoteCc === 'USDT'
-        ? ' Voor Nederlandse Kraken-accounts is USDT-spot vaak uitgeschakeld. Zet server-side `KRAKEN_QUOTE=EUR` en in `.env` ook `NEXT_PUBLIC_KRAKEN_QUOTE=EUR` (zelfde waarde) zodat orders via EUR-paren lopen; het orderbedrag is dan in euro.'
+        ? ' Voor Nederlandse Kraken-accounts is USDT-spot vaak uitgeschakeld. De app gebruikt standaard `KRAKEN_QUOTE=EUR`; laat die env leeg of zet expliciet EUR. Bij een USDT-poging: zet `KRAKEN_QUOTE=USDT` alleen als je account USDT-spot toestaat.'
         : '';
     throw new Error(`Kraken order mislukt: ${msg}.${hint}`);
   }

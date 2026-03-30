@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import { TRADE_PAIRS } from '@/lib/crypto-pairs';
 import { notifyTraderSettingsUpdated, TRADER_SETTINGS_KEY } from '@/lib/settings-storage';
 
 type Settings = {
@@ -12,15 +13,25 @@ type Settings = {
   llmCallsEnabled: boolean;
 };
 
-const PAIRS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'ADA/USDT', 'AVAX/USDT', 'LINK/USDT'];
 const TIMEFRAMES = ['15m', '1h', '4h', '1d', '1w'];
 const RISK_LEVELS = ['Conservative', 'Moderate', 'Aggressive'];
+
+function normalizeDefaultPair(stored: string | undefined): string {
+  const first = TRADE_PAIRS[0];
+  if (!stored) return first;
+  if ((TRADE_PAIRS as readonly string[]).includes(stored)) return stored;
+  if (stored.endsWith('/USDT')) {
+    const eur = stored.replace('/USDT', '/EUR');
+    if ((TRADE_PAIRS as readonly string[]).includes(eur)) return eur;
+  }
+  return first;
+}
 
 const selectClass =
   'w-full bg-[#0A0A0B] border border-[#1E1E28] rounded-lg px-3 py-2.5 text-off-white text-sm focus:outline-none focus:border-ai-blue transition-colors';
 
 const defaultSettings: Settings = {
-  defaultPair: 'BTC/USDT',
+  defaultPair: TRADE_PAIRS[0],
   defaultTimeframe: '4h',
   defaultRiskLevel: 'Moderate',
   llmCallsEnabled: true,
@@ -35,6 +46,7 @@ function loadSettingsFromStorage(): Settings {
     return {
       ...defaultSettings,
       ...parsed,
+      defaultPair: normalizeDefaultPair(parsed.defaultPair),
       llmCallsEnabled: parsed.llmCallsEnabled !== false,
     };
   } catch {
@@ -110,7 +122,11 @@ export default function SettingsForm() {
               className={selectClass}
               aria-label="Default trading pair"
             >
-              {PAIRS.map((p) => <option key={p} value={p}>{p}</option>)}
+              {TRADE_PAIRS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -151,9 +167,9 @@ export default function SettingsForm() {
           Keys worden uit environment variables geladen — nooit in de browser. Kraken-keys zijn voor Spot op{' '}
           <span className="font-mono text-off-white/80">api.kraken.com</span> (geen paper); houd{' '}
           <span className="font-mono text-off-white/80">AUTO_TRADING_ENABLED</span> lokaal uit tot je klaar bent om te
-          testen. Voor accounts in Nederland blokkeert Kraken vaak USDT-handel: zet dan{' '}
-          <span className="font-mono text-off-white/80">KRAKEN_QUOTE=EUR</span> (orders in euro tegen EUR-paren; de UI
-          blijft BTC/USDT enz. tonen voor signalen).
+          testen. Standaard is <span className="font-mono text-off-white/80">KRAKEN_QUOTE=EUR</span> (orders in euro). Zet{' '}
+          <span className="font-mono text-off-white/80">KRAKEN_QUOTE=USDT</span> als je USDT-spot op Kraken wilt gebruiken;
+          marktdata in de app blijft EUR-quote (Binance).
         </p>
 
         <div className="space-y-2.5">
@@ -167,7 +183,7 @@ export default function SettingsForm() {
             },
             { label: 'Kraken REST basis-URL (optioneel)', env: 'KRAKEN_API_BASE_URL', required: false },
             {
-              label: 'Kraken order-quote: USDT of EUR (NL vaak EUR)',
+              label: 'Kraken order-quote: EUR (standaard) of USDT',
               env: 'KRAKEN_QUOTE',
               required: false,
             },

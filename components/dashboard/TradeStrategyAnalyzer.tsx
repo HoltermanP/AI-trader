@@ -77,7 +77,7 @@ async function streamAnalysis(
 
 export default function TradeStrategyAnalyzer() {
   const [form, setForm] = useState<FormState>({
-    pair: 'BTC/USDT',
+    pair: TRADE_PAIRS[0],
     timeframe: '4h',
     riskLevel: 'Moderate',
     additionalContext: '',

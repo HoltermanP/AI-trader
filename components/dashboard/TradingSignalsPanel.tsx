@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { TRADE_PAIRS } from '@/lib/crypto-pairs';
+import { formatLlmCostDisplayEurFromUsd } from '@/lib/llm-cost';
 import { isLlmCallsEnabledClient } from '@/lib/settings-storage';
 import type {
   PairSignal,
@@ -91,12 +92,6 @@ async function fetchSignals(
   return { signals: data.signals, meta, usage: data.usage };
 }
 
-function formatUsd(n: number): string {
-  if (n < 0.0001) return n.toExponential(2);
-  if (n < 0.01) return n.toFixed(4);
-  return n.toFixed(3);
-}
-
 function formatNlTime(iso: string): string {
   try {
     const d = new Date(iso);
@@ -129,7 +124,7 @@ export default function TradingSignalsPanel() {
     ok: boolean;
     message: string;
   } | null>(null);
-  const [krakenOrderQuote, setKrakenOrderQuote] = useState<'USDT' | 'EUR'>('USDT');
+  const [krakenOrderQuote, setKrakenOrderQuote] = useState<'USDT' | 'EUR'>('EUR');
 
   const busyRef = useRef(false);
   const autoRefreshRef = useRef(autoRefresh);
@@ -147,9 +142,10 @@ export default function TradingSignalsPanel() {
         const res = await fetch('/api/kraken-quote', { cache: 'no-store' });
         const data = (await res.json()) as { quote?: string };
         if (cancelled || !res.ok) return;
-        if (data.quote?.toUpperCase() === 'EUR') setKrakenOrderQuote('EUR');
+        const q = data.quote?.toUpperCase();
+        if (q === 'USDT' || q === 'EUR') setKrakenOrderQuote(q);
       } catch {
-        /* blijf USDT — serverdefault */
+        /* behoud clientdefault EUR */
       }
     })();
     return () => {
@@ -415,10 +411,11 @@ export default function TradingSignalsPanel() {
             {(lastMeta || sessionSignalsCostUsd > 0) && (
               <p
                 className="text-xs font-mono text-slate-custom mt-2"
-                title="Geschat op basis van token-tellingen per aanroep; tarieven in lib/llm-cost.ts"
+                title="USD-tarief → indicatief EUR (LLM_COST_USD_TO_EUR_DISPLAY in lib/llm-cost.ts)"
               >
                 Sessie (signalen), geschat:{' '}
-                <span className="text-off-white/90">${formatUsd(sessionSignalsCostUsd)}</span> USD
+                <span className="text-off-white/90">{formatLlmCostDisplayEurFromUsd(sessionSignalsCostUsd)}</span>{' '}
+                <span className="text-slate-custom">(model in USD)</span>
               </p>
             )}
             {autoRefresh && nextRefreshAt != null && countdown && llmCallsEnabled && (
@@ -594,8 +591,11 @@ function SignalsTable({
               {state.usage.completionTokens.toLocaleString('nl-NL')} · totaal{' '}
               {state.usage.totalTokens.toLocaleString('nl-NL')}
               <span className="text-[#1E1E28] mx-2">|</span>
-              Geschat: <span className="text-emerald-400/90">${formatUsd(state.usage.estimatedUsd)}</span> USD (
-              {state.usage.model})
+              Geschat:{' '}
+              <span className="text-emerald-400/90">
+                {formatLlmCostDisplayEurFromUsd(state.usage.estimatedUsd)}
+              </span>{' '}
+              <span className="text-slate-custom">(model USD)</span> ({state.usage.model})
             </p>
           )}
 
@@ -615,11 +615,10 @@ function SignalsTable({
             </div>
             <p className="text-xs text-slate-custom leading-relaxed max-w-xl pb-0.5">
               Uitvoering gaat via je server naar{' '}
-              <span className="font-mono text-off-white/85">/api/execute-trade</span> (Kraken Spot). Limiet en toegestane
-              paren staan in <span className="font-mono text-off-white/85">AUTO_TRADING_*</span>; zet{' '}
-              <span className="font-mono text-off-white/85">AUTO_TRADING_ENABLED=true</span> alleen als je dit bewust
-              wilt. NL-accounts: zet <span className="font-mono text-off-white/85">KRAKEN_QUOTE=EUR</span> als USDT-spot
-              geblokkeerd is — orders lopen dan tegen EUR-paren (zelfde signaalparen in de UI).
+              <span className="font-mono text-off-white/85">/api/execute-trade</span> (Kraken Spot). Standaard-quote is{' '}
+              EUR; zet <span className="font-mono text-off-white/85">KRAKEN_QUOTE=USDT</span> voor USDT-orders. Limiet en
+              toegestane paren: <span className="font-mono text-off-white/85">AUTO_TRADING_*</span>; schakel{' '}
+              <span className="font-mono text-off-white/85">AUTO_TRADING_ENABLED=true</span> alleen bewust in.
             </p>
           </div>
 

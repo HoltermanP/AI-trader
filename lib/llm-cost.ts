@@ -15,3 +15,19 @@ export function estimateAnthropicSonnetUsd(inputTokens: number, outputTokens: nu
     (outputTokens / 1_000_000) * USD_PER_M.anthropic_sonnet_output
   );
 }
+
+/** Alleen voor UI: facturatie Anthropic is USD; koers indicatief (pas aan indien nodig). */
+export const LLM_COST_USD_TO_EUR_DISPLAY = 0.92;
+
+export function formatLlmCostDisplayEurFromUsd(usd: number): string {
+  const eur = usd * LLM_COST_USD_TO_EUR_DISPLAY;
+  if (eur > 0 && eur < 0.0001) {
+    return `${eur.toExponential(2).replace('.', ',')} €`;
+  }
+  return new Intl.NumberFormat('nl-NL', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(eur);
+}

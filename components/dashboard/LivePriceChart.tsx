@@ -70,10 +70,17 @@ function intervalLabel(iv: ChartKlineInterval): string {
   return map[iv];
 }
 
+/** Prijs in EUR (Binance EUR-quote). */
 function formatPrice(n: number) {
-  if (n >= 1000) return n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (n >= 1) return n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  return n.toLocaleString('nl-NL', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+  let s: string;
+  if (n >= 1000) {
+    s = n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } else if (n >= 1) {
+    s = n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  } else {
+    s = n.toLocaleString('nl-NL', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+  }
+  return `€${s}`;
 }
 
 type ChartPoint = {
@@ -393,7 +400,7 @@ export default function LivePriceChart() {
 
         <div className="space-y-3 lg:border-l lg:border-[#1E1E28] lg:pl-6">
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-custom">Laatste slot (USDT)</p>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-custom">Laatste slot (EUR)</p>
             <p className="text-2xl font-semibold text-off-white tabular-nums mt-1">
               {lastPrice != null ? formatPrice(lastPrice) : '—'}
             </p>

@@ -1,15 +1,15 @@
-/** Vaste set van 10 USDT-handelsparen voor signalen en analyse. */
+/** Vaste set van 10 EUR-handelsparen (Binance spot) voor signalen en analyse. */
 export const TRADE_PAIRS = [
-  'BTC/USDT',
-  'ETH/USDT',
-  'SOL/USDT',
-  'BNB/USDT',
-  'XRP/USDT',
-  'ADA/USDT',
-  'DOGE/USDT',
-  'AVAX/USDT',
-  'MATIC/USDT',
-  'LINK/USDT',
+  'BTC/EUR',
+  'ETH/EUR',
+  'SOL/EUR',
+  'BNB/EUR',
+  'XRP/EUR',
+  'ADA/EUR',
+  'DOGE/EUR',
+  'AVAX/EUR',
+  'MATIC/EUR',
+  'LINK/EUR',
 ] as const;
 
 export type TradePair = (typeof TRADE_PAIRS)[number];

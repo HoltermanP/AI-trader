@@ -4,14 +4,14 @@ const kpis = [
   {
     label: 'Portfolio Value',
     value: '—',
-    unit: 'USD',
+    unit: 'EUR',
     subtext: 'Connect exchange to track',
     positive: null,
   },
   {
     label: '24h P&L',
     value: '—',
-    unit: 'USD',
+    unit: 'EUR',
     subtext: 'Requires exchange API',
     positive: null,
   },

@@ -97,7 +97,7 @@ Antwoord uitsluitend met geldige JSON (geen markdown, geen tekst eromheen) in di
 {
   "signals": [
     {
-      "pair": "BTC/USDT",
+      "pair": "BTC/EUR",
       "signal": "BUY",
       "confidence": "Medium",
       "rationale": "Korte zin met reden."
