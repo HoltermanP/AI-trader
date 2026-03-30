@@ -5,11 +5,14 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import type { ScoredHeadline } from '@/lib/news/headlines';
 
+const AUTO_REFRESH_MS = 15 * 60 * 1000;
+
 type ApiOk = {
   fetchedAt: string;
   items: ScoredHeadline[];
   sourcesUsed: string[];
   fetchedBeforeFilter: number;
+  headlinesTranslated: boolean;
 };
 
 type PanelState =
@@ -32,8 +35,9 @@ function formatNlTime(iso: string): string {
 export default function CryptoImpactNewsPanel() {
   const [state, setState] = useState<PanelState>({ status: 'idle' });
 
-  const load = useCallback(async () => {
-    setState({ status: 'loading' });
+  const load = useCallback(async (opts?: { background?: boolean }) => {
+    const bg = opts?.background === true;
+    if (!bg) setState({ status: 'loading' });
     try {
       const res = await fetch('/api/crypto-news');
       const data = (await res.json()) as ApiOk & { error?: string };
@@ -42,6 +46,7 @@ export default function CryptoImpactNewsPanel() {
       }
       setState({ status: 'done', data });
     } catch (e) {
+      if (bg) return;
       setState({
         status: 'error',
         message: e instanceof Error ? e.message : 'Laden mislukt',
@@ -51,24 +56,25 @@ export default function CryptoImpactNewsPanel() {
 
   useEffect(() => {
     void load();
+    const id = window.setInterval(() => void load({ background: true }), AUTO_REFRESH_MS);
+    return () => window.clearInterval(id);
   }, [load]);
 
   return (
     <Card>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-off-white tracking-tight">Impact-nieuws</h2>
+          <h2 className="text-lg font-semibold text-off-white tracking-tight">Top 3 impact-nieuws</h2>
           <p className="mt-1 text-xs font-mono text-slate-custom leading-relaxed max-w-xl">
-            Alleen items met duidelijke band aan macro, rente, regulering, geopolitiek, banken,
-            cryptostress, energie of tarieven. Geen rankings op basis van koers — wel een streng
-            woordfilter om ruis te verminderen.
+            De drie belangrijkste koppen (macro, regulering, geopolitiek, enz.), in het Nederlands.
+            Automatisch elke 15 minuten vernieuwd; handmatig via de knop.
           </p>
         </div>
         <Button
           type="button"
           variant="outline"
           className="shrink-0 self-start"
-          onClick={() => void load()}
+          onClick={() => void load({})}
           disabled={state.status === 'loading'}
         >
           {state.status === 'loading' ? 'Laden…' : 'Vernieuwen'}
@@ -86,8 +92,9 @@ export default function CryptoImpactNewsPanel() {
           <p className="mt-4 text-[11px] font-mono text-slate-custom/90">
             {state.data.items.length > 0 ?
               <>
-                {state.data.items.length} van {state.data.fetchedBeforeFilter} headlines · Bron:{' '}
+                {state.data.fetchedBeforeFilter} ruwe koppen gescand · Bron:{' '}
                 {state.data.sourcesUsed.join(', ')} · {formatNlTime(state.data.fetchedAt)}
+                {!state.data.headlinesTranslated && ' · koppen Engels (LLM uit of vertaling mislukt)'}
               </>
             : <>
                 Geen impact-headlines nu ({state.data.fetchedBeforeFilter} ruwe items opgehaald).
@@ -108,9 +115,6 @@ export default function CryptoImpactNewsPanel() {
                         {c}
                       </span>
                     ))}
-                    <span className="text-[10px] font-mono text-slate-custom/80 ml-auto tabular-nums">
-                      score {item.impactScore}
-                    </span>
                   </div>
                   {item.url ?
                     <a

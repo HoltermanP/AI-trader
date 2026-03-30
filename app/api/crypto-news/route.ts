@@ -11,6 +11,7 @@ export async function GET() {
       items: r.headlines,
       sourcesUsed: r.sourcesUsed,
       fetchedBeforeFilter: r.fetchedBeforeFilter,
+      headlinesTranslated: r.headlinesTranslated,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Onverwachte fout';

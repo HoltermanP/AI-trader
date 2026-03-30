@@ -1,4 +1,5 @@
 import { filterHighImpactHeadlines, type ScoredHeadline } from './impact-filter';
+import { translateTitlesToNl } from './translate-headlines';
 
 export type NewsHeadline = {
   title: string;
@@ -148,12 +149,14 @@ function normalizeKey(title: string): string {
 }
 
 export type NewsDigestResult = {
-  /** Alleen headlines die aan het impactfilter voldoen (crypto/markt-relevant). */
+  /** Top 3 impact-headlines, titels in het Nederlands wanneer vertaling lukt. */
   headlines: ScoredHeadline[];
   digestText: string;
   sourcesUsed: string[];
   /** Totaal uniek opgehaald vóór filter (ter info). */
   fetchedBeforeFilter: number;
+  /** True als Claude de koppen naar NL heeft gezet. */
+  headlinesTranslated: boolean;
 };
 
 export async function buildNewsDigest(): Promise<NewsDigestResult> {
@@ -171,13 +174,11 @@ export async function buildNewsDigest(): Promise<NewsDigestResult> {
 
   const fetchedBeforeFilter = unique.length;
 
-  const impact = filterHighImpactHeadlines(unique, { maxItems: 28, minScore: 3 });
-
   const sourcesUsed = ['google-news-rss'];
   if (newsApi.length > 0) sourcesUsed.push('newsapi');
 
   const lines: string[] = [
-    'Headlines gefilterd op duidelijke koersimpact (macro/rente, regulering, geopolitiek, banken, cryptostress, energie, tarieven). Lage-signaal items (rages, simpele prijsvoorspellingen) worden weggefilterd.',
+    'Top 3 headlines gefilterd op koersimpact (macro/rente, regulering, geopolitiek, banken, cryptostress, energie, tarieven). Koppen in het Nederlands wanneer vertaling beschikbaar is.',
     '',
   ];
 
@@ -190,8 +191,18 @@ export async function buildNewsDigest(): Promise<NewsDigestResult> {
       digestText: lines.join('\n'),
       sourcesUsed,
       fetchedBeforeFilter: 0,
+      headlinesTranslated: false,
     };
   }
+
+  const impactRaw = filterHighImpactHeadlines(unique, { maxItems: 3, minScore: 3 });
+  const { translations: nlTitles, usedLlm: headlinesTranslated } = await translateTitlesToNl(
+    impactRaw.map((h) => h.title),
+  );
+  const impact: ScoredHeadline[] = impactRaw.map((h, i) => ({
+    ...h,
+    title: nlTitles[i] ?? h.title,
+  }));
 
   if (impact.length === 0) {
     lines.push(
@@ -202,6 +213,7 @@ export async function buildNewsDigest(): Promise<NewsDigestResult> {
       digestText: lines.join('\n'),
       sourcesUsed,
       fetchedBeforeFilter,
+      headlinesTranslated: false,
     };
   }
 
@@ -217,5 +229,6 @@ export async function buildNewsDigest(): Promise<NewsDigestResult> {
     digestText: lines.join('\n'),
     sourcesUsed,
     fetchedBeforeFilter,
+    headlinesTranslated,
   };
 }
